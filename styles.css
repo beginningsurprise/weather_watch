@@ -1,0 +1,1351 @@
+/* ============================================================
+   CSS VARIABLES — two skins: canonical (default) + terminal
+   ============================================================ */
+:root {
+  /* Default skin: canonical. JS applies skin-canonical on boot unless
+     localStorage explicitly contains "terminal". */
+  --pulse-color: #1a7fd4;   /* overwritten by JS _syncPulseCssVars() on boot */
+  --pulse-glow:  0 0 12px #1a7fd4;
+}
+
+/* ============================================================
+   SKIN: CANONICAL (realistic / iOS-weather style) — default
+   ============================================================ */
+
+/* (See body.skin-canonical block below — canonical is listed first
+    to reflect its status as the default skin.) */
+
+/* ============================================================
+   SKIN: TERMINAL (retro green-phosphor)
+   ============================================================ */
+body.skin-terminal {
+  /* colors: background */
+  --bg:          #0a0f0a;
+  --bg2:         #0d140d;
+  --bg3:         #111a11;
+  --panel:       #0f1a0f;
+  --panel-alt:   #0c160c;
+  --border:      #1e3a1e;
+  --border-hl:   #2a5a2a;
+  /* colors: text */
+  --fg:          #b8ffb8;
+  --fg2:         #7dcc7d;
+  --fg3:         #4a994a;
+  --fg-dim:      #2d662d;
+  /* colors: semantic */
+  --accent:      #00ff41;
+  --accent2:     #39ff14;
+  --warn:        #ffcc00;
+  --hot:         #ff4444;
+  --cold:        #44aaff;
+  --precip:      #4488ff;
+  --uv-low:      #33aa33;
+  --uv-mid:      #ffaa00;
+  --uv-high:     #ff4400;
+  --night-bg:    #050b05;
+  --day-bg:      #0f1f0f;
+  --font-mono:   'Share Tech Mono', 'Courier New', monospace;
+  --font-display:'VT323', monospace;
+  --font-body:   'Share Tech Mono', monospace;
+  --scanline:    rgba(0,255,65,0.03);
+  --glow:        0 0 8px rgba(0,255,65,0.4);
+  --glow-strong: 0 0 16px rgba(0,255,65,0.7), 0 0 32px rgba(0,255,65,0.3);
+  --radius:      2px;
+  --toggle-icon: "⬡";
+}
+
+/* ============================================================
+   SKIN: CANONICAL (realistic / iOS-weather style) — default
+   ============================================================ */
+body.skin-canonical {
+  /* colors: background */
+  --bg:          #e8f0f8;
+  --bg2:         #dce8f4;
+  --bg3:         #cfdeed;
+  --panel:       #f5f9ff;
+  --panel-alt:   #edf4fc;
+  --border:      #b0c8e0;
+  --border-hl:   #6ca0cc;
+  /* colors: text */
+  --fg:          #1a2a3a;
+  --fg2:         #2a4a6a;
+  --fg3:         #4a6a8a;
+  --fg-dim:      #7a9ab8;
+  /* colors: semantic */
+  --accent:      #1a7fd4;
+  --accent2:     #0e5fa8;
+  --warn:        #e07800;
+  --hot:         #d43a1a;
+  --cold:        #1a60c8;
+  --precip:      #1a60c8;
+  --uv-low:      #22aa44;
+  --uv-mid:      #e07800;
+  --uv-high:     #d43a1a;
+  --night-bg:    #1a0a2e;
+  --day-bg:      #eef5fc;
+  --font-mono:   'Share Tech Mono', 'Courier New', monospace;
+  --font-display:'Share Tech Mono', monospace;
+  --font-body:   'Share Tech Mono', monospace;
+  --scanline:    transparent;
+  --glow:        0 1px 6px rgba(26,127,212,0.25);
+  --glow-strong: 0 2px 14px rgba(26,127,212,0.45);
+  --radius:      8px;
+  --toggle-icon: "◈";
+}
+
+/* Canonical skin panel polish */
+body.skin-canonical .panel {
+  box-shadow: 0 2px 10px rgba(26,80,140,0.10);
+}
+body.skin-canonical #topbar-inner {
+  background: linear-gradient(135deg, #dce8f8, #c8daee);
+}
+body.skin-canonical .temp-f { color: #1a7fd4 !important; text-shadow: none; }
+body.skin-canonical .stat-value { color: var(--fg2); }
+body.skin-canonical .now-stat {
+  border-radius: 10px;
+  background: rgba(255,255,255,0.7);
+}
+body.skin-canonical tr.h-current td {
+  background: color-mix(in srgb, #eef5fc 80%, #1a7fd4 20%);
+}
+body.skin-canonical .cloud-bar-bg.cb-day  { background: #87ceeb; border-color: #5ba8d4; }
+body.skin-canonical .cloud-bar-bg.cb-day .cloud-bar-fill  { background: #a8bfce; }
+body.skin-canonical .cloud-bar-bg.cb-night { background: #1a2540; border-color: #2a3a5a; }
+body.skin-canonical .cloud-bar-bg.cb-night .cloud-bar-fill { background: #4a5a7a; }
+body.skin-canonical #banner-title { text-shadow: none; }
+body.skin-canonical .range-btn.active,
+body.skin-canonical .range-btn:hover {
+  background: rgba(26,127,212,0.12);
+}
+
+/* Night-mode background for canonical skin only */
+body.skin-canonical.night-mode {
+  background: #1a0a2e;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background 0.4s, color 0.4s;
+}
+
+/* scanline overlay for terminal */
+body.skin-terminal::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    var(--scanline) 0px,
+    var(--scanline) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* ============================================================
+   LAYOUT WRAPPER
+   ============================================================ */
+#app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ============================================================
+   PANEL BASE
+   ============================================================ */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+}
+
+#sky-section {
+  background: linear-gradient(
+    to bottom,
+    rgba(120, 200, 140, 0.17),
+    rgba(120, 200, 140, 0.13)
+  );
+}
+
+#sky-feels {
+  font-family: var(--font-display);
+  font-size: 1.2rem;   /* ← your control knob */
+  color: var(--fg3);
+  letter-spacing: 0.08em;
+}
+
+/* KNOB (1): base panel header size (terminal skin) — raise/lower font-size here */
+.panel-header {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  letter-spacing: 0.12em;
+  color: var(--fg3);
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   SKIN TOGGLE
+   ============================================================ */
+#skin-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 999;
+  background: var(--bg3);
+  border: 1px solid var(--border-hl);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  letter-spacing: 0.1em;
+  box-shadow: var(--glow);
+  transition: all 0.3s;
+}
+#skin-toggle:hover { box-shadow: var(--glow-strong); }
+
+/* ============================================================
+   TOP BAR — spec: dual column, dividers, 24h clock
+   ============================================================ */
+#topbar {
+  padding: 0;
+}
+
+#topbar-inner {
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* LEFT: temp + condition */
+#topbar-weather {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
+}
+
+/* RIGHT: clock + location/windy */
+#topbar-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 0;
+  flex: 1;
+}
+
+/* Divider lines — must align across both columns */
+.topbar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 5px 0;
+  width: 100%;
+}
+
+.topbar-secondary {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  letter-spacing: 0.08em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Clock row — NOW panel-header, right side */
+#clock-row-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  font-family: var(--font-mono);
+  font-size: 1.0rem;
+  color: var(--fg3);
+  letter-spacing: 0.06em;
+}
+
+#time-hhmm {
+  font-family: var(--font-mono);
+  font-size: 1.0rem;
+  line-height: 1;
+  color: var(--fg3);
+  text-shadow: none;
+  letter-spacing: 0.06em;
+}
+
+#time-ss {
+  font-size: 1.0rem;
+  font-weight: bold;
+  line-height: 1;
+  color: var(--hot);
+}
+
+#time-tz {
+  font-size: 0.72rem;
+  color: var(--fg-dim);
+  margin-left: 3px;
+}
+
+/* Date — bottom-left of NOW panel, same style as city name */
+#topbar-date {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  color: var(--fg3);
+  letter-spacing: 0.10em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Condition — now top-right, large display font */
+#topbar-cond-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+}
+
+#topbar-cond-main .now-condition {
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  letter-spacing: 0.02em;
+  opacity: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Responsive condition font sizes — set via JS class on #now-condition */
+#topbar-cond-main .now-condition.cond-md {
+  font-size: 2.4rem;
+}
+#topbar-cond-main .now-condition.cond-sm {
+  font-size: 1.9rem;
+}
+#topbar-cond-main .now-condition.cond-xs {
+  font-size: 1.5rem;
+}
+
+/* Force identical typography + spacing */
+.topbar-row2 .topbar-secondary,
+.topbar-cond-row .topbar-secondary {
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Remove vertical drift from emoji */
+#now-condition {
+  gap: 6px;
+}
+/* Align both rows vertically */
+.topbar-row2,
+.topbar-cond-row {
+  display: flex;
+  align-items: center;
+}
+
+/* Windy link in topbar */
+#topbar-windy-link {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--fg-dim);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.18s;
+}
+#topbar-windy-link:hover { color: var(--accent); }
+
+/* Temp row right: °F large + °C small inline */
+.topbar-temp-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  justify-content: flex-start;
+}
+
+/* °C inline with °F, smaller */
+.topbar-tc {
+  font-size: 0.85rem;
+  color: var(--fg-dim);
+}
+
+
+
+/* Legacy — keep #date-dow in case anything still references it */
+#date-dow { display: none; }
+/* Hide old meta-combined */
+#meta-combined { display: none; }
+#meta-right { display: none; }
+
+
+
+/* ============================================================
+   SKYBOWL — radial weather visualization
+   ============================================================ */
+#sun-arc-full {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+#sun-arc-full canvas {
+  width: 100%;
+  height: 220px;   /* SKYBOWL height — tall enough for R=1.15 labels above rim */
+  display: block;
+}
+   
+   
+#now-panel {
+  padding: 12px;
+}
+
+#now-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  align-items: stretch;
+  gap: 10px;
+}
+
+/* Wraps the temperature and the new dynamic wind canvas */
+.now-temp-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-right: 10px;
+  min-height: 130px;
+}
+
+.now-temp-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex: 1;
+}
+
+/* Bottom footer row: condition + wind speed, aligned with arc label strip */
+.now-temp-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+  gap: 6px;
+}
+
+.wind-speed-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--fg3);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+}
+
+.now-temp-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+
+#now-icon-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+#now-icon-wrap canvas {
+  flex: 1;
+  min-height: 110px;
+}
+
+.temp-f {
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: var(--glow-strong);
+  letter-spacing: -0.02em;
+}
+
+
+.temp-c {
+  font-size: 0.85rem;
+  color: var(--fg3);
+}
+
+.now-condition {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--fg3);
+  margin-top: 4px;
+  letter-spacing: 0.04em;
+}
+
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+}
+
+.now-details {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+/* .now-details already spans full width; applying .full-width class achieves the same */
+
+.now-stat {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.6rem;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: block;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--fg2);
+  display: block;
+  line-height: 1.1;
+}
+
+
+/* Wind arrow */
+.wind-arrow-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.wind-arrow {
+  display: inline-block;
+  font-size: 1.2rem;
+  transition: transform 0.5s ease;
+}
+.wind-speed-val {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--fg2);
+  line-height: 1;
+}
+
+/* Sunrise/sunset row */
+.sun-row {
+  grid-column: 1 / -1; /* spans full grid — also achieved via .full-width class */
+  display: flex;
+  justify-content: space-around;
+  font-size: 0.7rem;
+  color: var(--fg3);
+  padding: 4px 0 0;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
+/* ============================================================
+   HOURLY PANEL
+   ============================================================ */
+#hourly-panel .panel-header span { font-size: 0.7rem; color: var(--fg-dim); }
+
+.hourly-table-wrap {
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+.hourly-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hourly-table th {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  padding: 2px 2px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+  position: sticky;
+  top: 0;
+  white-space: normal;
+  text-align: center;
+}
+
+
+.hourly-table td {
+  padding: 1px 2px;
+  text-align: center;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+  line-height: 1.15;
+}
+
+
+/* Time column */
+td.h-time {
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--accent);
+  padding-left: 5px;
+  width: 40px;
+  min-width: 40px;
+}
+.ampm-tag {
+  font-size: 0.5rem;
+  color: var(--fg-dim);
+  letter-spacing: 0.04em;
+  display: block;
+  line-height: 1;
+}
+
+/* Night rows */
+tr.h-night { background: var(--night-bg); }
+tr.h-night td.h-time { color: var(--warn); }
+tr.h-day   { background: var(--day-bg); }
+
+/* Temperature cell — position-as-sparkline */
+td.h-temp {
+  width: 80px;
+  min-width: 80px;
+  padding: 1px 0;
+  position: relative;
+}
+.temp-plot-wrap {
+  position: relative;
+  width: 80px;
+  height: 16px;
+  display: block;
+}
+.temp-plot-label {
+  position: absolute;
+  top: 0;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  line-height: 16px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* Wind cell */
+td.h-wind {
+  font-family: var(--font-display);
+  min-width: 20px;
+}
+
+
+/* RH (humidity) cell — handled in soup-spec footer additions above */
+.cloud-bar-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cloud-bar-bg {
+  width: 30px;
+  height: 7px;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+/* Day: clear=sky-blue bg, cloud fill grows from right as gray */
+.cloud-bar-bg.cb-day {
+  background: #1a6aaa;
+  border: 1px solid #0d4477;
+}
+.cloud-bar-bg.cb-day .cloud-bar-fill {
+  background: #7a8fa0;
+}
+/* Night: clear=near-black, cloud fill=dark gray */
+.cloud-bar-bg.cb-night {
+  background: #080e14;
+  border: 1px solid #1a2a3a;
+}
+.cloud-bar-bg.cb-night .cloud-bar-fill {
+  background: #3a4a5a;
+}
+.cloud-bar-fill {
+  height: 100%;
+}
+
+/* RH (humidity) cell */
+td.h-rh { font-size: 0.85rem; white-space: normal;}
+
+/* Current-hour highlight */
+tr.h-current { border-left: 2px solid var(--accent); }
+tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent) 15%); }
+
+/* ============================================================
+   RANGE BUTTON GROUP (replaces dropdowns in panel headers)
+   ============================================================ */
+.range-btn-group {
+  display: flex;
+  gap: 3px;
+}
+.range-btn {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  white-space: nowrap;
+}
+.range-btn.active,
+.range-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--bg3);
+}
+
+
+.panel-header select {
+  background: var(--bg2);
+  border: 1px solid var(--border-hl);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  padding: 1px 4px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  outline: none;
+}
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+
+
+/* --- LOCATION LAYOUT UPDATE --- */
+#location-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+#globe-canvas {
+  flex-shrink: 0;
+  width: 180px;
+  height: 180px;
+}
+
+/* ── SEARCH BOX ── */
+#location-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+#location-search {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--fg2);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: var(--radius);
+  outline: none;
+  box-sizing: border-box;
+  letter-spacing: 0.04em;
+}
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+}
+#location-search::placeholder { color: var(--fg-dim); }
+#location-search:focus { border-color: var(--accent); box-shadow: var(--glow); }
+
+#location-suggest {
+  display: none;
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--panel);
+  border: 1px solid var(--border-hl);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+#location-suggest.open { display: block; }
+.suggest-item {
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--fg2);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.suggest-item:last-child { border-bottom: none; }
+.suggest-item:hover, .suggest-item.active {
+  background: var(--bg3);
+  color: var(--accent);
+}
+
+/* ── INFO LINES (coords / elev-pop / Köppen / Windy) — all identical style ── */
+#location-coords,
+#location-elev-pop,
+#location-koppen,
+#location-windy {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--fg-dim);
+  letter-spacing: 0.06em;
+  padding-left: 2px;
+  line-height: 1.5;
+}
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+}
+#location-windy {
+  text-decoration: none;
+  display: inline-block;
+  transition: color 0.18s;
+}
+#location-windy:hover { color: var(--accent); }
+
+/* ── SELECT+SEARCH ROW (lives in header now — see HTML) ── */
+#location-controls-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ============================================================
+   LOCATION SELECTOR
+   ============================================================ */
+#location-bar {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: visible;
+  position: relative;
+  z-index: 10;
+}
+#location-header-row {
+  padding: 3px 8px 3px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+#location-bar-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 5px 6px 5px 6px;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+#location-label {
+  color: var(--fg3);
+  letter-spacing: 0.12em;
+  font-size: 1.2rem;
+  font-family: var(--font-display);
+  white-space: nowrap;
+  line-height: 1;
+}
+#location-select {
+  min-width: 160px;
+  background: var(--bg3);
+  border: 1px solid var(--border-hl);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  outline: none;
+  flex: 0 0 auto;
+  max-width: 55%;
+}
+
+/* NOW label on daily chart */
+#daily-svg-wrap {
+  position: relative;
+}
+#daily-now-label {
+  position: absolute;
+  left: 2px;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  transform: translateY(-50%);
+  background: var(--panel);
+  padding: 0 2px;
+  z-index: 2;
+}
+
+/* ============================================================
+   DAILY PANEL
+   ============================================================ */
+#daily-panel-content {
+  padding: 8px 10px;
+}
+
+.daily-axis {
+  position: relative;
+  height: 120px;
+  margin: 8px 0 4px;
+}
+
+.daily-strip {
+  display: flex;
+  height: 100%;
+  gap: 0;
+}
+
+.daily-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  cursor: default;
+}
+
+.daily-col.today { background: color-mix(in srgb, var(--bg) 70%, var(--accent) 30%); }
+
+.d-name {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--fg3);
+  letter-spacing: 0.05em;
+  padding-top: 2px;
+}
+
+
+.d-name.weekend { color: var(--accent); font-weight: bold; }
+
+.d-icon { font-size: 1.3rem; margin: 2px 0; }
+
+.d-bar-area {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 2px;
+}
+
+/* SVG-based connected temp range chart */
+#daily-svg {
+  width: 100%;
+  overflow: visible;
+  display: block;
+}
+
+.d-precip {
+  font-size: 0.65rem;
+  color: var(--precip);
+  text-align: center;
+  padding-bottom: 3px;
+}
+.d-precip.no-rain { color: var(--fg-dim); }
+
+/* Daily meta row */
+.daily-meta {
+  display: flex;
+  font-size: 0.65rem;
+  color: var(--fg3);
+  padding: 4px 0 0;
+  border-top: 1px solid var(--border);
+  justify-content: space-between;
+}
+
+/* ============================================================
+   LOADING / ERROR
+   ============================================================ */
+#loading {
+  text-align: center;
+  padding: 40px 20px;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--fg3);
+  letter-spacing: 0.15em;
+}
+
+.blink { animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+#error-msg {
+  display: none;
+  padding: 12px;
+  background: var(--bg3);
+  border: 1px solid var(--hot);
+  border-radius: var(--radius);
+  color: var(--hot);
+  font-size: 0.8rem;
+}
+
+/* ============================================================
+   SKYBOWL polar case overlay
+   ============================================================ */
+.skybowl-polar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--fg-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* SKYBOWL panel header label */
+.skybowl-panel-label {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+#page-banner {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+#banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+#banner-logo {
+  height: 1em;
+  width: auto;
+  display: block;
+  align-self: center;
+}
+
+#banner-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+  font-size: 1.6rem;
+  letter-spacing: 0.08em;
+  text-shadow: none;
+}
+
+/* Date shown inline in banner: "Tue, Apr 21" — same size as title */
+#banner-date {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--fg3);
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+#banner-version {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--fg-dim);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+/* Location name — shared base */
+.topbar-loc-name {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  color: var(--fg3);
+  letter-spacing: 0.10em;
+  line-height: 1.2;
+  text-align: left;
+}
+
+/* Location name in left column: small caps, dim color, left-aligned */
+.topbar-loc-name-left {
+  text-align: left;
+  font-variant: small-caps;
+  font-size: 0.72rem;
+  color: var(--fg-dim);
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+}
+
+/* ============================================================
+   SKY PANEL
+   ============================================================ */
+
+/* ── Anemometer wind instrument ── */
+#anemometer-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0 4px;
+}
+#anemometer-canvas {
+  display: block;
+    transform: scale(0.6);
+    transform-origin: center;
+}
+#anemometer-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--fg3);
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+  text-align: center;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+#footer-data {
+  text-align: center;
+  font-size: 0.6rem;
+  color: var(--fg-dim);
+  padding: 4px 6px 0;
+  letter-spacing: 0.08em;
+}
+
+#footer-data a { color: inherit; }
+
+/* ============================================================
+   LAYOUT UTILITIES
+   Semantic helpers so grid/flex changes don't require hunting
+   for hardcoded span values scattered through the CSS.
+   ============================================================ */
+.full-width {
+  grid-column: 1 / -1;
+}
+
+/* ============================================================
+   VISIBILITY UTILITY
+   Use .is-hidden instead of display:none on grid/flex children
+   so panels remain in layout flow at all times.
+   ============================================================ */
+.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ============================================================
+   RESPONSIVE TWEAKS
+   ============================================================ */
+@media (max-width: 360px) {
+  .temp-f { font-size: 3.5rem; }
+  #time-display { font-size: 2.2rem; }
+  .hourly-table td, .hourly-table th { padding: 4px 4px; font-size: 0.75rem; }
+}
+
+@media (min-width: 900px) {
+
+  #app {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-flow: column;
+    grid-template-rows: auto auto auto auto auto auto;
+    gap: 12px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 12px;
+  }
+
+  /* Banner spans both columns, anchored to row 1 */
+  #page-banner {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  /* Left column: SKY, NOW, TEMP FORECAST */
+  #sky-section      { grid-column: 1; grid-row: 2; }
+  #topbar           { grid-column: 1; grid-row: 3; }
+  #forecast-section { grid-column: 1; grid-row: 4; }
+
+  /* Right column: WEEKLY, HERE, SPEC */
+  #weekly-section   { grid-column: 2; grid-row: 2; }
+  #location-bar     { grid-column: 2; grid-row: 3; }
+  #soup-spec-footer { grid-column: 2; grid-row: 4; }
+
+  /* Footer spans both columns */
+  #footer-data      { grid-column: 1 / -1; grid-row: 5; }
+  #footer-copyright { grid-column: 1 / -1; grid-row: 6; }
+}
+
+
+/* RH (humidity) cell — stacked emoji + % */
+td.h-rh {
+  font-size: 0.85rem;
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.1;
+}
+.h-rh-emoji { font-size: 1.0rem; line-height: 1; }
+.h-rh-pct   { font-size: 0.50rem; color: var(--fg3); line-height: 1; }
+
+/* Transposed mode: h-rh cell stacks vertically inside column */
+.hourly-table tbody td.h-rh {
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ============================================================
+   SOUP SPEC FOOTER
+   ============================================================ */
+#soup-spec-footer .soup-spec-bar {
+  border-top: none;
+  border-radius: 0;
+}
+
+/* ============================================================
+   SOUP SPEC — collapsible methodology footnote
+   ============================================================ */
+.soup-spec-bar {
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  padding: 3px 8px;
+  background: var(--bg3);
+}
+.soup-spec-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: color 0.2s, border-color 0.2s;
+}
+.soup-spec-btn:hover,
+.soup-spec-btn.open {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.soup-spec-body {
+  display: none;
+  padding: 8px 12px 10px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--fg3);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  letter-spacing: 0.02em;
+}
+.soup-spec-body.open { display: block; }
+.soup-spec-section {
+  color: var(--fg2);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+.soup-spec-key { color: var(--accent); }
+
+/* SKY corner value/label typography */
+.sky-val {
+  display: block;
+  font-size: 1.1rem;
+  color: var(--fg2);
+}
+
+.sky-sub {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--fg3);
+}
+
+/* SKY inside dial */
+.sky-center {
+  position: absolute;
+  top: 58%;              /* tweak visually */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-family: var(--font-display);
+  pointer-events: auto;  /* important if you want clickable link */
+}
+

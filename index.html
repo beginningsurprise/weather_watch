@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Weather Watch - Lyrical Data</title>
+<meta name="author" content="Lyrical Data">
+<meta name="description" content="Experimental weather visualization by Lyrical Data">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Fredoka:wght@400;600&family=VT323&display=swap" rel="stylesheet">
+<script src="world-polys.js"></script>
+<script src="koppen-data.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="skin-canonical">
+
+<button id="skin-toggle" title="Toggle skin">◈ SKIN</button>
+
+<div id="app">
+  <div id="loading">LOADING<span class="blink">_</span></div>
+  <div id="error-msg" style="display:none;padding:12px;color:var(--hot);font-family:var(--font-mono);font-size:0.85rem;"></div>
+
+  <div id="page-banner">
+    <div id="banner-left">
+      <img src="weatherwatch.png" id="banner-logo">
+      <span id="banner-title">WEATHER WATCH</span>
+      <span id="banner-date" style="display:none;"></span>
+    </div>
+  </div>
+
+  <!-- SKY PANEL -->
+  <div class="panel is-hidden" id="sky-section">
+    <div class="panel-header">
+      <span>SKY</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="range-btn-group" id="now-sky-btns">
+          <button class="range-btn active" data-view="current">Now</button>
+          <button class="range-btn" data-view="other">Tonight</button>
+          <button class="range-btn" data-view="other2">Tomorrow</button>
+        </div>
+        <span id="now-header-time"></span>
+      </div>
+    </div>
+    <div id="now-panel">
+
+    <!-- FULL WIDTH SUN ARC + overlay instruments -->
+    <div id="sun-arc-full">
+      <div class="skybowl-wrap">
+        <canvas id="sun-arc-canvas"></canvas>
+
+        <div class="skybowl-overlay">
+          <!-- Corner overlays: feels-like (left) and cycle precip (right) -->
+          <div id="sky-feels" class="sky-corner sky-left"></div>
+          <div id="sky-precip" class="sky-corner sky-right"></div>
+          <!-- Anemometer: positioned top left by JS -->
+          <div id="anemometer-wrap" style="position:absolute;transform:translate(-50%,-50%);">
+            <canvas id="anemometer-canvas"></canvas>
+            <div id="anemometer-label"></div>
+          </div>
+        </div>
+		  <!-- Location -->
+		  <div id="sky-location" class="sky-center"></div>
+      </div>
+    </div>
+    <!-- comfort emoji stored for wind-in-arc drawing -->
+    <span id="now-comfort-emoji" style="display:none;"></span>
+	</div>
+  </div>
+
+  <div id="topbar" class="panel">
+    <div class="panel-header">
+      <span>NOW</span>
+      <span id="clock-row-inline">
+        <span id="time-hhmm">18:21</span><span id="time-ss">:38</span><span id="time-tz"> CST</span>
+      </span>
+    </div>
+    <div id="topbar-inner">
+    <div id="topbar-weather">
+      <div class="topbar-temp-row">
+        <span class="temp-f" id="now-temp-f">--°F</span>
+        <span class="temp-c topbar-tc" id="now-temp-c">--°C</span>
+      </div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-cond-row">
+        <span id="topbar-date"></span>
+      </div>
+    </div>
+    <div id="topbar-clock">
+      <div id="topbar-cond-main">
+        <span class="topbar-secondary now-condition" id="now-condition">---</span>
+      </div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-row2">
+        <span id="now-comfort"></span>
+      </div>
+    </div>
+    </div><!-- /topbar-inner -->
+  </div>
+
+  <div class="panel is-hidden" id="forecast-section">
+    <div class="panel-header">
+      <span>TEMP FORECAST <span class="header-arrow" id="hourly-arrow">→</span></span>
+      <div class="range-btn-group" id="hourly-range-btns">
+        <button class="range-btn active" data-val="3">3 cycles</button>
+        <button class="range-btn" data-val="7">7 cycles</button>
+      </div>
+    </div>
+    <div id="hourly-chart-wrap">
+      <!-- Tooltip card — shown on hover/tap -->
+      <div id="hourly-tooltip" style="display:none;"></div>
+      <svg id="hourly-svg"></svg>
+      <div id="hourly-wind-row"></div>
+    </div>
+  </div>
+
+  <!-- HOURLY PANEL -->
+  <style>
+    /* ── Skybowl overlay wrapper ── */
+    .skybowl-wrap {
+      position: relative;
+    }
+    .skybowl-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    /* ── Sky panel corner overlays (feels-like, cycle precip) ── */
+    .sky-corner {
+      position: absolute;
+      top: 8px;
+      font-size: 0.75rem;
+      color: var(--fg3);
+      font-family: var(--font-mono);
+      line-height: 1.2;
+      white-space: pre;
+      pointer-events: none;
+    }
+    .sky-left  { left: 10px;  text-align: left; }
+    .sky-right { right: 10px; text-align: right; }
+
+    /* ── Hourly SVG chart ── */
+    #hourly-chart-wrap {
+      padding: 0 6px 6px;
+      overflow: visible;
+      position: relative;
+    }
+    #hourly-svg {
+      display: block;
+      overflow: visible;
+      width: 100%;
+    }
+    #hourly-wind-row {
+      display: flex;
+      flex-direction: row;
+      gap: 0;
+      margin-top: 2px;
+      width: 100%;
+    }
+    .hw-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: var(--font-display);
+      font-size: 0.55rem;
+      color: var(--fg3);
+      flex: 1;
+      line-height: 1.2;
+      overflow: hidden;
+    }
+    .hw-cell.hw-current {
+      border-top: 2px solid var(--accent);
+      color: var(--accent);
+    }
+    .ampm-tag {
+      display: inline;
+      font-size: 0.38rem;
+      margin-left: 1px;
+    }
+
+    /* ── Tooltip card (shared by hourly + daily) ── */
+    #hourly-tooltip {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--panel);
+      border: 1px solid var(--border-hl);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--fg2);
+      z-index: 100;
+      pointer-events: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      min-width: 130px;
+      line-height: 1.65;
+      white-space: nowrap;
+    }
+    #hourly-tooltip .tt-time {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      color: var(--accent);
+      display: block;
+      margin-bottom: 3px;
+      letter-spacing: 0.05em;
+    }
+    #hourly-tooltip .tt-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #hourly-tooltip .tt-label { color: var(--fg-dim); }
+    #hourly-tooltip .tt-val   { color: var(--fg2); font-weight: bold; }
+    #hourly-tooltip .tt-cond  { color: var(--fg); margin-bottom: 2px; }
+
+    /* Daily tooltip reuses tt-row/tt-label/tt-val from above */
+    #daily-tooltip .tt-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #daily-tooltip .tt-label { color: var(--fg-dim); }
+    #daily-tooltip .tt-val   { color: var(--fg2); font-weight: bold; }
+
+    /* ── Header arrow pulse animation ── */
+    .header-arrow {
+      display: inline-block;
+      animation: arrowPulse 2.4s ease-in-out infinite;
+      margin-left: 3px;
+      font-size: 0.85em;
+      vertical-align: middle;
+    }
+    @keyframes arrowPulse {
+      0%, 100% { opacity: 0.25; }
+      50%       { opacity: 0.95; }
+    }
+
+    @keyframes nowDotPulse {
+      0%, 100% { opacity: 1;   r: 3; }
+      50%       { opacity: 0.5; r: 3; }
+    }
+
+    /* Daily panel: make relative for overlay positioning */
+    #daily-panel-content {
+      position: relative;
+    }
+  </style>
+
+  <!-- DAILY PANEL -->
+  <div class="panel is-hidden" id="weekly-section">
+    <div class="panel-header">
+      <span>WEEKLY <span class="header-arrow" id="daily-arrow">→→</span></span>
+      <div class="range-btn-group" id="daily-range-btns">
+        <button class="range-btn active" data-val="7">7-day</button>
+        <button class="range-btn" data-val="14">14-day</button>
+      </div>
+    </div>
+    <div id="daily-panel-content">
+      <div id="daily-icons-row" style="display:flex;"></div>
+      <div id="daily-svg-wrap">
+        <span id="daily-now-label">NOW</span>
+        <svg id="daily-svg" height="200"></svg>
+      </div>
+      <div id="daily-precip-row" style="display:flex;"></div>
+      <!-- daily-tooltip and daily-overlay-wrap are injected by app.js -->
+    </div>
+  </div>
+
+
+  <!-- LOCATION BAR -->
+  <div id="location-bar">
+    <div id="location-header-row">
+      <span id="location-label">HERE</span>
+      <div id="location-search-wrap">
+        <input id="location-search" type="text" placeholder="search city…" autocomplete="off" spellcheck="false">
+        <div id="location-suggest"></div>
+      </div>
+    </div>
+    <div id="location-bar-row">
+      <div id="location-left">
+        <!-- Dropdown -->
+        <div id="location-controls-row">
+          <select id="location-select">
+            <option value="41.9,-87.9,America/Chicago">Chicago, IL</option>
+            <option value="25.7617,-80.1918,America/New_York">Miami, FL</option>
+            <option value="37.7749,-122.4194,America/Los_Angeles">San Francisco, CA</option>
+            <option value="40.7128,-74.006,America/New_York">New York, NY</option>
+            <option value="51.5074,-0.1278,Europe/London">London, UK</option>
+            <option value="48.8566,2.3522,Europe/Paris">Paris, France</option>
+            <option value="35.6762,139.6503,Asia/Tokyo">Tokyo, Japan</option>
+            <option value="-33.8688,151.2093,Australia/Sydney">Sydney, Australia</option>
+            <option value="-1.2921,36.8219,Africa/Nairobi">Nairobi, Kenya</option>
+          </select>
+        </div>
+        <!-- Info lines -->
+        <div id="location-coords">--°N  --°W</div>
+        <div id="location-elev-pop">—</div>
+        <div id="location-koppen">—</div>
+      </div>
+      <canvas id="globe-canvas"></canvas>
+    </div>
+  </div>
+  
+
+  <!-- SOUP SPEC — consolidated, lives at page footer -->
+  <div id="soup-spec-footer" class="panel">
+    <div class="panel-header">
+      <span>SPEC</span>
+    </div>
+    <div class="soup-spec-bar">
+      <button class="soup-spec-btn" onclick="toggleSoup(this)">[ SOUP SPEC ]</button>
+    </div>
+    <div class="soup-spec-body" id="soup-spec-all">
+<span class="soup-spec-section">━━ DATA MODEL ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="soup-spec-key">state</span>      Single AppState object — no window._last* globals
+<span class="soup-spec-key">bm</span>         Best Match: open-meteo /v1/forecast (default model)
+<span class="soup-spec-key">ecmwf</span>      ECMWF IFS: same endpoint + &amp;models=ecmwf_ifs025
+           Fetched in parallel; null if fetch fails (non-fatal)
+<span class="soup-spec-key">derived</span>    sunTimes, cloudPct, weatherEmoji, comfortEmoji,
+           skybowlWindow {start, end, isNight},
+           timeDomain {now, cycles[], window {start, end}}
+
+<span class="soup-spec-section">━━ TIME DOMAIN ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="soup-spec-key">concept</span>    Time defined in skycycles (day or night windows)
+<span class="soup-spec-key">cycle</span>      {start: Date, end: Date, isNight: bool}
+           daytime = sunrise→sunset; nighttime = sunset→next sunrise
+<span class="soup-spec-key">timeDomain</span> rebuilt on every clock tick + data load
+           cycles[0] = current cycle; aligned to skybowlWindow
+<span class="soup-spec-key">3 cycles</span>   default; window ≈ current + next 2 skycycles
+<span class="soup-spec-key">6 cycles</span>   extended; forecast compresses (thinner columns)
+<span class="soup-spec-key">window</span>     timeDomain.window.start → end drives FORECAST x-axis
+           and WEEKLY gradient intensity
+
+<span class="soup-spec-section">━━ NOW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="soup-spec-key">provider</span>   open-meteo.com (free, no API key) · /v1/forecast?current=...
+<span class="soup-spec-key">refresh</span>    every 15 min, aligned to :01/:16/:31/:46
+<span class="soup-spec-key">temperature</span>  °F primary (C→F: ×9/5+32); °C secondary · hot≥85°F cold≤32°F
+<span class="soup-spec-key">condition</span>  WMO weather-code → description; emoji on sun-arc canvas only
+<span class="soup-spec-key">wind</span>       kph→mph (÷1.60934); arrow points in direction wind is GOING
+<span class="soup-spec-key">UV index</span>   0–2 low(green) · 3–5 mid(amber) · 6+ high(red); shown on arc
+<span class="soup-spec-key">dew point</span>  °C→°F; drives comfort emoji in NOW stats + hourly table
+<span class="soup-spec-key">precip/hr</span>  mm→inches (÷25.4); "—" if zero
+<span class="soup-spec-key">cloud</span>      % cover; drives sky gradient + arc thickness overlay
+<span class="soup-spec-key">sun arc</span>    ellipse from today's sunrise→sunset (open-meteo daily)
+           arc: travelled=solid, remaining=dashed; ticks every 1h
+           UV strip (green→yellow→red) + cloud band overlaid inside arc
+           precip shown as text labels (e.g. 0.12") at R=0.60 inside arc
+           sky view cycles: current · upcoming night · tomorrow AM/PM
+
+<span class="soup-spec-section">━━ HOURLY ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="soup-spec-key">provider</span>   open-meteo.com BM · 1h intervals, 16d ahead
+           ECMWF IFS run in parallel; comparison shown in tooltip
+<span class="soup-spec-key">x-axis</span>     timeDomain.window.start → end (skycycle-aligned)
+           includes past hours in current cycle
+<span class="soup-spec-key">display</span>    3 cycles (default) or 6 cycles; toggle top-right
+           6-cycle mode: thins to every 3h to maintain readability
+<span class="soup-spec-key">now marker</span> vertical accent line at timeDomain.now; updates each second
+<span class="soup-spec-key">time col</span>   day=lighter, night=darker shading per is_day flag
+<span class="soup-spec-key">temp col</span>   sparkline: value positioned vertically, min→max of displayed range
+           dew point shown dimmer on same axis · hot/cold coloring
+<span class="soup-spec-key">comfort col</span> emoji keyed to dew point °F:
+           🌵 &lt;35°F  bone dry  · 🙂 35–49°F comfortable
+           😐 50–59°F slightly humid · 💧 60–69°F muggy · 🌊 70°F+ oppressive
+           raw RH% shown below emoji
+<span class="soup-spec-key">tooltip</span>    hover/tap any hour column for full data row:
+           time · condition · temp / feels · dew/RH · wind + gusts
+           precip (in") + chance% · UV (daytime, non-zero only)
+           cloud% · visibility (mi) · snow (if &gt;0)
+           ECMWF temp + delta (colored warm/cold) if available
+<span class="soup-spec-key">new fields</span> apparent_temperature (feels-like) · precipitation_probability
+           wind_gusts_10m · snowfall · visibility (m→mi in tooltip)
+
+<span class="soup-spec-section">━━ DAILY ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="soup-spec-key">provider</span>   open-meteo.com /v1/forecast?daily=... · 16 days, display 7 or 14
+<span class="soup-spec-key">temp chart</span> SVG range: max line (hot) + min line (cold); shaded band between
+           NOW dot = current temp · 🔥/🥶 if avg differs from now by ≥5°F
+<span class="soup-spec-key">highlight</span>  gradient intensity keyed to timeDomain.window overlap
+           intensity = 1 − (distance_from_now / window_length), clamped [0,1]
+           fades outward from now; expands in 6-cycle mode
+<span class="soup-spec-key">precip row</span> daily total mm→inches; "·" if zero
+<span class="soup-spec-key">tooltip</span>    hover/tap any day column (transparent overlay covers full column)
+           day name · date · condition · high/low · precip + chance%
+           sunshine duration (h m) if available · snow if &gt;0
+<span class="soup-spec-key">new fields</span> precipitation_probability_max (shown in tooltip as chance%)
+           sunshine_duration (seconds → h m, shown in tooltip)
+    </div>
+  </div>
+
+  <div id="footer-data" style="text-align:center;font-size:0.6rem;color:var(--fg-dim);padding:4px 6px 0;letter-spacing:0.08em;">
+    Fetched: <span id="footer-fetched-time">—</span> · Next: <span id="next-refresh-time">—</span> · <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline dotted;">open-meteo.com</a>
+  </div>
+  <div id="footer-copyright" style="text-align:center;font-size:0.6rem;color:var(--fg-dim);padding:2px 6px 8px;letter-spacing:0.08em;">© 2026 Lyrical Data · MIT License · v. 260427</div>
+</div>
+
+<script src="app.js?v=2"></script>
+<script src="skybowl.js?v=2"></script>
+</body>
+</html>
