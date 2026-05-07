@@ -60,9 +60,8 @@ const AppState = {
   },
 
   view: {
-    skin:        localStorage.getItem('wb-skin') || 'canonical',
+    skin:        localStorage.getItem('wb-skin') || 'nautical',
     nowSkyView:  'current',   // 'current' | 'other' | 'other2'
-    hourlyHours: 30,          // legacy; not used for forecast rendering
     cycleCount:  3,           // 3 or 6 skycycles in TimeDomain
     dailyDays:   7,
   },
@@ -93,6 +92,9 @@ const AppState = {
 
 /* ── Convenience alias (wide use in this file) ── */
 let CONFIG = AppState.config;
+
+/* ── Skybowl tooltip setup guard — ensures setupSkybowlTooltip() runs once ── */
+let _sbTooltipSetup = false;
 
 
 /* ============================================================
@@ -134,13 +136,12 @@ function getPulseAlpha() {
   return ps.minAlpha + (ps.maxAlpha - ps.minAlpha) * i;
 }
 
-/** Returns the pulse CSS color string (reads from CSS variables). */
+/** Returns the pulse CSS color string — skin-specific hardcoded constant. */
 function getPulseColor() {
-  const mode = AppState.config.pulseStyle.colorMode;
-  const cs   = getComputedStyle(document.body);
-  return (mode === 'hot')
-    ? cs.getPropertyValue('--hot').trim()
-    : cs.getPropertyValue('--accent').trim();
+  if (document.body.classList.contains('skin-terminal')) {
+    return '#00ff41';   // terminal: bright phosphor green
+  }
+  return '#F7931A';     // nautical (and any other light skin): orange
 }
 
 /** Writes --pulse-color and --pulse-glow CSS variables to :root.
@@ -159,19 +160,19 @@ document.getElementById('skin-toggle')?.addEventListener('click', _syncPulseCssV
 /* ============================================================
    SKIN HELPERS
    ============================================================ */
-const isSkinCanonical = () => document.body.classList.contains('skin-canonical');
+const isSkinNautical  = () => document.body.classList.contains('skin-nautical');
 const isSkinTerminal  = () => document.body.classList.contains('skin-terminal');
-const isSkinLight     = () => isSkinCanonical();   // canonical is the light skin
+const isSkinLight     = () => isSkinNautical();   // nautical is the light skin
 
 // Migrate any stored legacy skin name to the two-skin scheme
 {
-  const stored = localStorage.getItem('wb-skin') || 'canonical';
-  AppState.view.skin = (stored === 'terminal') ? 'terminal' : 'canonical';
+  const stored = localStorage.getItem('wb-skin') || 'nautical';
+  AppState.view.skin = (stored === 'terminal') ? 'terminal' : 'nautical';
 }
 document.body.className = `skin-${AppState.view.skin}`;
 
 document.getElementById('skin-toggle').addEventListener('click', () => {
-  AppState.view.skin = (AppState.view.skin === 'canonical') ? 'terminal' : 'canonical';
+  AppState.view.skin = (AppState.view.skin === 'nautical') ? 'terminal' : 'nautical';
   document.body.className = `skin-${AppState.view.skin}`;
   // Re-apply night-mode class if needed
   _applyNightMode();
@@ -181,12 +182,11 @@ document.getElementById('skin-toggle').addEventListener('click', () => {
 
 
 /* ============================================================
-   NIGHT-MODE BACKGROUND (canonical skin only)
+   NIGHT-MODE BACKGROUND (nautical skin only)
    ============================================================ */
 function _applyNightMode() {
-  const td = AppState.derived.timeDomain;
-  const isNight = td && td.cycles && td.cycles[0] ? td.cycles[0].isNight : false;
-  document.body.classList.toggle('night-mode', isNight && isSkinCanonical());
+  const isNight = AppState.derived.skybowlWindow?.isNight ?? false;
+  document.body.classList.toggle('night-mode', isNight && isSkinNautical());
 }
 
 
@@ -345,6 +345,17 @@ const WMO = {
 };
 const wmo = code => WMO[code] || WMO[Math.floor(code / 10) * 10] || { e: '🌡️', d: 'Unknown' };
 
+function getWeatherEmoji(code, isNight) {
+  const info = wmo(code);
+  if (!isNight) return info.e;
+  // Night overrides
+  if (code === 0) return '🌙';                          // clear
+  if (code === 1 || code === 2) return '🌙';            // partly cloudy → still moon
+  if (code === 3) return '☁️';                          // overcast
+  // For rain / storm etc, ensure no sun appears
+  return info.e.replace('☀️', '').trim() || info.e;
+}
+
 const dewComfortEmoji = dewF => {
   if (dewF < 35) return '🌵';
   if (dewF < 50) return '🙂';
@@ -493,9 +504,6 @@ function buildTimeDomain() {
     window: { start: windowStart, end: windowEnd },
   };
 
-  /* ── Apply night-mode background class (canonical skin only) ── */
-  _applyNightMode();
-
   /* ── Keep skybowlWindow in sync with cycles[0] (Step 2) ── */
   /* Only override if nowSkyView is 'current'; other views are
      managed by updateSkybowlWindowForView() in skybowl.js */
@@ -506,6 +514,9 @@ function buildTimeDomain() {
       isNight: cycles[0].isNight,
     };
   }
+
+  /* ── Apply night-mode background class (nautical skin only) ── */
+  _applyNightMode();
 }
 
 
@@ -535,6 +546,7 @@ function tickClock() {
     /* Subtle pulse on seconds — brightness via text-shadow */
     const alpha = getPulseAlpha();
     const color = getPulseColor();
+    ssEl.style.color      = color;
     ssEl.style.textShadow = `0 0 ${Math.round(8 * getPulseIntensity())}px ${color}`;
     ssEl.style.opacity    = (0.65 + 0.35 * alpha).toFixed(3);
   }
@@ -545,13 +557,6 @@ function tickClock() {
   const dateEl = document.getElementById('banner-date');
   if (dateEl) {
     dateEl.textContent = now.toLocaleDateString('en-US', {
-      timeZone: tz, weekday: 'short', month: 'short', day: 'numeric',
-    });
-  }
-
-  const skyFeelsEl = document.getElementById('sky-feels');
-  if (skyFeelsEl) {
-    skyFeelsEl.textContent = now.toLocaleDateString('en-US', {
       timeZone: tz, weekday: 'short', month: 'short', day: 'numeric',
     });
   }
@@ -580,27 +585,46 @@ function _updateNowMarker() {
   const { start, end } = td.window;
   const nowMs = td.now.getTime();
   const frac  = (nowMs - start.getTime()) / (end.getTime() - start.getTime());
-  if (frac < 0 || frac > 1) { marker.style.display = 'none'; return; }
 
-  const svgW = parseFloat(svgEl.getAttribute('width') || 0);
+  const hline = svgEl.querySelector('#td-now-hline');
+
+  if (frac < 0 || frac > 1) {
+    marker.style.display = 'none';
+    if (hline) hline.style.display = 'none';
+    return;
+  }
+
+  /* Recover plotLeft stamped by renderHourly so the x position is consistent */
+  const plotLeft = parseFloat(svgEl.dataset.plotLeft || 0);
+  const svgW     = parseFloat(svgEl.getAttribute('width') || 0);
   if (!svgW) return;
-  const x = frac * svgW;
+  const plotW = svgW - plotLeft;
+  const x = plotLeft + frac * plotW;
+
   marker.setAttribute('x1', x.toFixed(1));
   marker.setAttribute('x2', x.toFixed(1));
   marker.style.display = '';
 
-  /* Pulse the now-marker stroke: opacity + slight width breathe */
+  /* Unified pulse — both axes breathe with identical opacity and color */
   const pAlpha = getPulseAlpha();
-  const pIntensity = getPulseIntensity();
-  marker.setAttribute('opacity',      (0.55 + 0.45 * pAlpha).toFixed(3));
-  marker.setAttribute('stroke-width', (1.0  + 1.0  * pIntensity).toFixed(2));
   const pColor = getPulseColor();
-  marker.setAttribute('stroke', pColor);
-  /* Update glow line (next sibling) if present */
-  const glowLine = marker.nextElementSibling;
-  if (glowLine && glowLine.tagName === 'line') {
-    glowLine.setAttribute('opacity', (0.04 + 0.10 * pIntensity).toFixed(3));
-    glowLine.setAttribute('stroke',  pColor);
+  const opacity = (0.40 + 0.50 * pAlpha).toFixed(3);
+
+  marker.setAttribute('stroke',  pColor);
+  marker.setAttribute('opacity', opacity);
+
+  if (hline) {
+    hline.setAttribute('stroke',  pColor);
+    hline.setAttribute('opacity', opacity);
+    hline.style.display = '';
+  }
+
+  /* Temp dot — same pulse phase, scale breathes slightly around base r=3 */
+  const dot = svgEl.querySelector('#td-now-dot');
+  if (dot) {
+    const pScale = getPulseScale();
+    dot.setAttribute('opacity', opacity);
+    dot.setAttribute('r', (3 * (0.85 + 0.15 * pScale)).toFixed(2));
   }
 }
 
@@ -770,8 +794,7 @@ function renderSky(data) {
   const locNow = nowInTz(CONFIG.tz);
   const isNight = locNow < srDt0 || locNow > ssDt0;
 
-  let condEmoji = w.e;
-  if (isNight && wCode === 0) condEmoji = '🌙';
+  let condEmoji = getWeatherEmoji(wCode, isNight);
 
   const el = NOW_EL;
   if (el.tempF) el.tempF.textContent = `${tempF}°F`;
@@ -791,7 +814,7 @@ function renderSky(data) {
     const cs = getComputedStyle(document.body);
     if (tempF >= 85)      el.tempF.style.color = cs.getPropertyValue('--hot').trim();
     else if (tempF <= 32) el.tempF.style.color = cs.getPropertyValue('--cold').trim();
-    else                  el.tempF.style.color = cs.getPropertyValue('--accent').trim();
+    else                  el.tempF.style.color = getPulseColor();
   }
 
   // Update AppState with wind (read by skybowl via AppState directly)
@@ -800,6 +823,11 @@ function renderSky(data) {
 
   startWindAnim();   // idempotent
   startAnemometer(); // idempotent
+
+  if (!_sbTooltipSetup && typeof setupSkybowlTooltip === 'function') {
+    setupSkybowlTooltip();
+    _sbTooltipSetup = true;
+  }
 
   if (el.windLabel) el.windLabel.textContent = `${toMph(windKph)} MPH`;
   if (el.humidity)  el.humidity.textContent  = `${Math.round(rh)}%`;
@@ -828,7 +856,7 @@ function renderSky(data) {
   const ssDt = new Date(d.sunset[0]);
   AppState.derived.sunTimes     = [srDt, ssDt];
   AppState.derived.cloudPct     = cloud;
-  AppState.derived.weatherEmoji = (isNight && wCode === 0) ? '🌙' : w.e;
+  AppState.derived.weatherEmoji = getWeatherEmoji(wCode, isNight);
 
   /* Build TimeDomain now that daily data is available */
   buildTimeDomain();
@@ -847,20 +875,8 @@ function renderSky(data) {
 
   updateSkybowlWindowForView();
 
-  // Skycycle precip total (top-right of skybowl)
-  const h = data.hourly;
-  const win = AppState.derived.skybowlWindow;
-  if (h && win) {
-    let totalMm = 0;
-    for (let i = 0; i < h.time.length; i++) {
-      const t = new Date(h.time[i]);
-      if (t >= win.start && t <= win.end) {
-        totalMm += h.precipitation[i] || 0;
-      }
-    }
-    const precipEl = document.getElementById('sky-precip');
-    if (precipEl) precipEl.innerHTML = `<span class="sky-val">${toIn(totalMm)}"</span><span class="sky-sub">cycle precip</span>`;
-  }
+  // Skycycle precip total + date label — delegated to shared helper
+  updateSkyOverlayLabels();
   
   // location
   updateSkyLocation();
@@ -869,6 +885,64 @@ function renderSky(data) {
     drawSkybowl(srDt, ssDt, cloud, AppState.derived.weatherEmoji, data.hourly)
   );
 }
+
+
+/* ============================================================
+   SKY OVERLAY LABELS — date label + cycle precip
+   Called after any view change or data load.
+   ============================================================ */
+function updateSkyOverlayLabels() {
+  const win = AppState.derived.skybowlWindow;
+  if (!win || !win.start || !win.end) return;
+
+  // ── Task 1: date label in sky-feels ──────────────────────────
+  const skyFeelsEl = document.getElementById('sky-feels');
+  if (skyFeelsEl) {
+    const fmtDate = d => d.toLocaleDateString('en-US', {
+      timeZone: CONFIG.tz, weekday: 'short', month: 'short', day: 'numeric',
+    });
+    const view = AppState.view.nowSkyView;
+    if (view === 'other') {
+      skyFeelsEl.textContent = `${fmtDate(win.start)} → ${fmtDate(win.end)}`;
+    } else if (view === 'other2') {
+      skyFeelsEl.textContent = `→→ ${fmtDate(win.end)}`;
+    } else {
+      skyFeelsEl.textContent = fmtDate(win.start);
+    }
+  }
+
+  // ── Task 2: cycle precip sum in sky-precip ───────────────────
+  const h = AppState.bm.hourly;
+  const precipEl = document.getElementById('sky-precip');
+  if (h && h.time && h.precipitation && precipEl) {
+    const winStart = win.start.getTime();
+    const winEnd   = win.end.getTime();
+    let totalMm = 0;
+    for (let i = 0; i < h.time.length; i++) {
+      const tMs = new Date(h.time[i]).getTime();
+      if (tMs >= winStart && tMs <= winEnd) {
+        totalMm += h.precipitation[i] || 0;
+      }
+    }
+    precipEl.innerHTML = `<span class="sky-val">${toIn(totalMm)}"</span><span class="sky-sub">cycle precip</span>`;
+  }
+}
+
+function updateHourlyArrow() {
+  const el = document.getElementById('hourly-arrow');
+  if (!el) return;
+  const n = AppState.view.cycleCount || 3;
+  el.textContent = '→'.repeat(n);
+}
+updateHourlyArrow();
+
+function updateDailyArrow() {
+  const el = document.getElementById('daily-arrow');
+  if (!el) return;
+  const n = AppState.view.dailyDays || 7;
+  el.textContent = '→'.repeat(n);
+}
+updateDailyArrow();
 
 
 /* ============================================================
@@ -953,15 +1027,17 @@ function renderHourly(data) {
 
   const svgWrap    = document.getElementById('hourly-chart-wrap');
   const containerW = svgWrap ? (svgWrap.clientWidth - 12) : 440;
-  const colW  = Math.max(8, Math.floor(containerW / count));
-  const svgW  = colW * count;
+  const plotLeft = 32;                                          // left margin for temp-axis anchor
+  const colW  = Math.max(8, Math.floor((containerW - plotLeft) / count));
+  const plotW = colW * count;                                   // width of the actual plot area
+  const svgW  = plotLeft + plotW;                               // total SVG width
   const svgH  = 240;
   const plotTop = 22;  // increased from 16 to leave room for top-axis day labels
   const plotBot = svgH - 16;
   const plotH   = plotBot - plotTop;
 
   const ty = tempF => plotBot - ((tempF - tMin) / tRange) * plotH;
-  const tx = k     => k * colW + colW / 2;
+  const tx = k     => plotLeft + k * colW + colW / 2;          // all columns shifted right by plotLeft
 
   let maxK = 0, minK = 0;
   for (let k = 0; k < indices.length; k++) {
@@ -992,7 +1068,7 @@ function renderHourly(data) {
   let svg = '';
 
   // ── Skybowl sync highlight ──────────────────────────────────
-  let sbKStart = -1, sbKEnd = -1, sbHlColor = '#d4900a', sbIsNight = false;
+  let sbKStart = -1, sbKEnd = -1, sbHlColor = '#F7931A', sbIsNight = false;
   const sbWin = AppState.derived.skybowlWindow;
   if (sbWin && sbWin.start && sbWin.end) {
     const sbS = new Date(sbWin.start);
@@ -1001,7 +1077,7 @@ function renderHourly(data) {
     sbE.setMinutes(0, 0, 0);
     sbE.setTime(sbE.getTime() + 3600000);
     sbIsNight = sbWin.isNight === true;
-    sbHlColor = sbIsNight ? '#4477ee' : '#d4900a';
+    sbHlColor = sbIsNight ? '#4477ee' : '#F7931A';
 
     for (let k = 0; k < indices.length; k++) {
       const t2 = times[indices[k]];
@@ -1010,7 +1086,7 @@ function renderHourly(data) {
     }
 
     if (sbKStart >= 0 && sbKEnd >= sbKStart) {
-      const bx = sbKStart * colW;
+      const bx = plotLeft + sbKStart * colW;
       const bw = (sbKEnd - sbKStart + 1) * colW;
       const gid = `sbg_${Date.now()}_${Math.round(Math.random() * 9999)}`;
       svg += `<defs>
@@ -1034,7 +1110,7 @@ function renderHourly(data) {
   for (let k = 0; k < indices.length; k++) {
     const i = indices[k];
     const isDay = h.is_day[i] === 1;
-    const x = k * colW;
+    const x = plotLeft + k * colW;
     svg += `<rect x="${x}" y="${plotTop}" width="${colW}" height="${plotH}" fill="${isDay ? dayBg : nightBg}" opacity="0.35"/>`;
   }
 
@@ -1044,7 +1120,7 @@ function renderHourly(data) {
     const t = times[indices[k]];
     const dateStr = t.toDateString();
     if (dateStr !== lastDateStr && lastDateStr !== '') {
-      const x = k * colW;
+      const x = plotLeft + k * colW;
       svg += `<line x1="${x}" y1="${plotTop}" x2="${x}" y2="${plotBot}" stroke="${borderColor}" stroke-width="1.5" opacity="0.6"/>`;
     }
     lastDateStr = dateStr;
@@ -1054,14 +1130,14 @@ function renderHourly(data) {
   for (let k = 0; k < indices.length; k++) {
     const hr = times[indices[k]].getHours();
     if (hr % 6 === 0) {
-      const x = k * colW;
+      const x = plotLeft + k * colW;
       svg += `<line x1="${x}" y1="${plotTop}" x2="${x}" y2="${plotBot}" stroke="${borderColor}" stroke-width="0.5" opacity="0.3"/>`;
     }
   }
 
   // Current time guide
   if (currentK >= 0) {
-    const cx2 = currentK * colW;
+    const cx2 = plotLeft + currentK * colW;
     svg += `<rect x="${cx2}" y="${plotTop}" width="${colW}" height="${plotH}" fill="${accentColor}" opacity="0.07"/>`;
     svg += `<line x1="${tx(currentK).toFixed(1)}" y1="${plotTop}" x2="${tx(currentK).toFixed(1)}" y2="${plotBot}" stroke="${accentColor}" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>`;
   }
@@ -1107,12 +1183,8 @@ function renderHourly(data) {
     const fill = isMax ? hotColor : (isMin ? coldColor : (isCurrent ? accentColor : fg3Color));
 
     if (isCurrent) {
-      svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${fill}">
-        <animate attributeName="opacity" values="1;0.4;1" dur="1.8s" repeatCount="indefinite"/>
-      </circle>`;
-      if (!isMax && !isMin) {
-        svg += `<text x="${x.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="${colW > 14 ? 10 : 7}" fill="${accentColor}" font-weight="bold" font-family="monospace">${tempF}°</text>`;
-      }
+      /* No inline <animate> — pulsed by _updateNowMarker via global pulse system */
+      svg += `<circle id="td-now-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${fill}"/>`;
     } else {
       svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${fill}"/>`;
     }
@@ -1190,13 +1262,7 @@ function renderHourly(data) {
     svg += `<text x="${x.toFixed(1)}" y="${(svgH - 2).toFixed(1)}" text-anchor="middle" font-size="${colW > 14 ? 7 : 6}" fill="${fgDimColor}" font-family="monospace" opacity="0.55">${label}</text>`;
   }
 
-  svg += `
-  <text x="6" y="${plotTop + 10}"
-        font-size="10"
-        fill="${fgDimColor}">
-    °F
-  </text>
-`;
+  svg += `<text x="${plotLeft - 2}" y="${plotTop + 10}" font-size="8" fill="${fgDimColor}" font-family="monospace" text-anchor="end" opacity="0.5">°F</text>`;
 
   // ── Day labels — top axis, one per calendar day, centered on each day segment ──
   {
@@ -1222,31 +1288,35 @@ function renderHourly(data) {
     }
   }
 
-  /* ── TimeDomain "now" marker — crosshair (vertical + horizontal) ── */
+  /* ── TimeDomain "now" marker — synchronized dashed crosshair ── */
   if (td && td.window) {
     const nowFrac = (td.now.getTime() - td.window.start.getTime())
                   / (td.window.end.getTime() - td.window.start.getTime());
     if (nowFrac >= 0 && nowFrac <= 1) {
-      const nx = (nowFrac * svgW).toFixed(1);
-      /* Vertical line */
-      svg += `<line id="td-now-marker" x1="${nx}" y1="${plotTop}" x2="${nx}" y2="${plotBot}" stroke="${accentColor}" stroke-width="1.5" opacity="0.85" stroke-dasharray="none"/>`;
-      svg += `<line x1="${nx}" y1="${plotTop}" x2="${nx}" y2="${plotBot}" stroke="${accentColor}" stroke-width="5" opacity="0.08"/>`;
-      svg += `<text x="${parseFloat(nx) + 3}" y="${plotTop + 9}" font-size="7" fill="${accentColor}" font-family="monospace" opacity="0.75">NOW</text>`;
-      /* Horizontal line at current temp — completes the crosshair */
+      const nx = (plotLeft + nowFrac * plotW).toFixed(1);
+      /* Vertical dashed line — no glow, no solid fill, no "NOW" text */
+      svg += `<line id="td-now-marker" x1="${nx}" y1="${plotTop}" x2="${nx}" y2="${plotBot}" stroke="${accentColor}" stroke-width="1" opacity="0.72" stroke-dasharray="4,3"/>`;
+      /* Horizontal dashed line — same style, own id so _updateNowMarker can pulse it */
       if (currentK >= 0) {
-        const nowTempY = ty(toF(h.temperature_2m[indices[currentK]])).toFixed(1);
-        svg += `<line x1="0" y1="${nowTempY}" x2="${svgW}" y2="${nowTempY}" stroke="${accentColor}" stroke-width="1" opacity="0.45" stroke-dasharray="4,3"/>`;
+        const nowTempF = toF(h.temperature_2m[indices[currentK]]);
+        const nowTempY = ty(nowTempF).toFixed(1);
+        svg += `<line id="td-now-hline" x1="${plotLeft}" y1="${nowTempY}" x2="${svgW}" y2="${nowTempY}" stroke="${accentColor}" stroke-width="1" opacity="0.72" stroke-dasharray="4,3"/>`;
+        /* Left-axis anchor label — aligns with the horizontal crosshair line */
+        svg += `<text x="${plotLeft - 2}" y="${(parseFloat(nowTempY) + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="${accentColor}" font-family="monospace" opacity="0.85">${nowTempF}°</text>`;
       }
     } else {
-      svg += `<line id="td-now-marker" x1="0" y1="${plotTop}" x2="0" y2="${plotBot}" stroke="${accentColor}" stroke-width="1.5" opacity="0.85" style="display:none"/>`;
+      /* Out of window: render hidden placeholders so _updateNowMarker querySelector doesn't fail */
+      svg += `<line id="td-now-marker"  x1="${plotLeft}" y1="${plotTop}" x2="${plotLeft}" y2="${plotBot}" stroke="${accentColor}" stroke-width="1" opacity="0" stroke-dasharray="4,3" style="display:none"/>`;
+      svg += `<line id="td-now-hline"   x1="${plotLeft}" y1="${plotTop}" x2="${svgW}"     y2="${plotTop}" stroke="${accentColor}" stroke-width="1" opacity="0" stroke-dasharray="4,3" style="display:none"/>`;
     }
   }
 
   const svgEl = document.getElementById('hourly-svg');
   if (!svgEl) return;
-  svgEl.setAttribute('width', svgW);
-  svgEl.setAttribute('height', svgH);
+  svgEl.setAttribute('width',   svgW);
+  svgEl.setAttribute('height',  svgH);
   svgEl.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+  svgEl.dataset.plotLeft = plotLeft;   // read by _updateNowMarker to recompute vline x
   svgEl.innerHTML = svg;
 
   // Wind row — magnitude as typography: stepped font size + glyph by speed band
@@ -1290,10 +1360,9 @@ function setupHourlyTooltip(svgEl, indices, times, h, svgW, svgH, plotTop, plotB
   const wrap = document.getElementById('hourly-chart-wrap');
   if (!wrap) return;
 
-  const newSvg = svgEl.cloneNode(true);
-  svgEl.parentNode.replaceChild(newSvg, svgEl);
-  const svgEl2 = document.getElementById('hourly-svg');
-  if (!svgEl2) return;
+  /* No clone-and-replace needed — inline <animate> tags removed.
+     Use the live SVG element directly so listeners are never orphaned. */
+  const svgEl2 = svgEl;
 
   // Build ECMWF timestamp→index map (match by timestamp string, not array index)
   const ecmwfMap = new Map();
@@ -1304,7 +1373,7 @@ function setupHourlyTooltip(svgEl, indices, times, h, svgW, svgH, plotTop, plotB
   function getClosestK(clientX) {
     const rect = svgEl2.getBoundingClientRect();
     if (rect.width === 0) return 0;
-    const relX = (clientX - rect.left) * (svgW / rect.width);
+    const relX = (clientX - rect.left) * (svgW / rect.width) - plotLeft;
     const k = Math.floor(relX / colW);
     return Math.max(0, Math.min(indices.length - 1, k));
   }
@@ -1343,9 +1412,8 @@ function setupHourlyTooltip(svgEl, indices, times, h, svgW, svgH, plotTop, plotB
     const snow    = h.snowfall?.[i] ?? 0;
     const visMi   = h.visibility?.[i] != null ? toMi(h.visibility[i]) : null;
 
-    const sunTimes = AppState.derived.sunTimes;
-    const isNight  = sunTimes && (t < sunTimes[0] || t > sunTimes[1]);
-    const emoji    = (isNight && h.weather_code[i] === 0) ? '🌙' : wInfo.e;
+    const isNight  = h.is_day[i] === 0;
+    const emoji    = getWeatherEmoji(h.weather_code[i], isNight);
 
     // ECMWF comparison — match by timestamp string
     let ecmwfRow = '';
@@ -1516,7 +1584,7 @@ function renderDaily(data) {
   svg += `<path d="${poly}" fill="${coldColor}" fill-opacity="0.28" clip-path="url(#clip-cold)"/>`;
   svg += `<polyline points="${maxPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="none" stroke="${hotColor}"  stroke-width="2" stroke-linejoin="round"/>`;
   svg += `<polyline points="${minPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="none" stroke="${coldColor}" stroke-width="2" stroke-linejoin="round"/>`;
-  svg += `<line x1="0" y1="${nowY.toFixed(1)}" x2="${W}" y2="${nowY.toFixed(1)}" stroke="${accentColor}" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>`;
+  svg += `<line x1="0" y1="${nowY.toFixed(1)}" x2="${W}" y2="${nowY.toFixed(1)}" stroke="${getPulseColor()}" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>`;
 
   for (let i = 0; i < n; i++) {
     const cx    = colW * i + colW / 2;
@@ -2067,6 +2135,7 @@ document.getElementById('hourly-range-btns').addEventListener('click', function 
   this.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   AppState.view.cycleCount = parseInt(btn.dataset.val);
+  updateHourlyArrow();
   if (AppState.bm.daily) buildTimeDomain();
   if (AppState.bm.hourly) renderHourly({ hourly: AppState.bm.hourly, daily: AppState.bm.daily, current: AppState.bm.current });
   if (AppState.bm.daily) renderDaily({ hourly: AppState.bm.hourly, daily: AppState.bm.daily, current: AppState.bm.current });
@@ -2078,6 +2147,7 @@ document.getElementById('daily-range-btns').addEventListener('click', function (
   this.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   AppState.view.dailyDays = parseInt(btn.dataset.val);
+  updateDailyArrow();
   if (AppState.bm.daily) renderDaily({ hourly: AppState.bm.hourly, daily: AppState.bm.daily, current: AppState.bm.current });
 });
 
@@ -2088,6 +2158,8 @@ document.getElementById('now-sky-btns').addEventListener('click', function (e) {
   btn.classList.add('active');
   AppState.view.nowSkyView = btn.dataset.view;
   updateSkybowlWindowForView();
+  _applyNightMode();
+  updateSkyOverlayLabels();
   redrawNowSky();
   if (AppState.bm.hourly) renderHourly({ hourly: AppState.bm.hourly, daily: AppState.bm.daily, current: AppState.bm.current });
 });
