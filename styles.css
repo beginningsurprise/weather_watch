@@ -1,23 +1,23 @@
 /* ============================================================
-   CSS VARIABLES — two skins: canonical (default) + terminal
-   ============================================================ */
+  CSS VARIABLES — two skins: nautical (default) + terminal
+  ============================================================ */
 :root {
-  /* Default skin: canonical. JS applies skin-canonical on boot unless
-     localStorage explicitly contains "terminal". */
-  --pulse-color: #1a7fd4;   /* overwritten by JS _syncPulseCssVars() on boot */
-  --pulse-glow:  0 0 12px #1a7fd4;
+  /* Default skin: nautical. JS applies skin-nautical on boot unless
+    localStorage explicitly contains "terminal". */
+  --pulse-color: #b5820a;   /* overwritten by JS _syncPulseCssVars() on boot */
+  --pulse-glow:  0 0 12px #b5820a;
 }
 
 /* ============================================================
-   SKIN: CANONICAL (realistic / iOS-weather style) — default
-   ============================================================ */
+  SKIN: NAUTICAL (tide chart / printed instrument) — default
+  ============================================================ */
 
-/* (See body.skin-canonical block below — canonical is listed first
+/* (See body.skin-nautical block below — nautical is listed first
     to reflect its status as the default skin.) */
 
 /* ============================================================
-   SKIN: TERMINAL (retro green-phosphor)
-   ============================================================ */
+  SKIN: TERMINAL (retro green-phosphor)
+  ============================================================ */
 body.skin-terminal {
   /* colors: background */
   --bg:          #0a0f0a;
@@ -52,81 +52,103 @@ body.skin-terminal {
   --glow-strong: 0 0 16px rgba(0,255,65,0.7), 0 0 32px rgba(0,255,65,0.3);
   --radius:      2px;
   --toggle-icon: "⬡";
+  --cloud-day-bg:     #0f1f0f;
+  --cloud-day-border: #1e3a1e;
+  --cloud-day-fill:   #2a4a2a;
+  --cloud-night-bg:   #050b05;
+  --cloud-night-border:#0a1a0a;
+  --cloud-night-fill: #1a2a1a;
 }
 
 /* ============================================================
-   SKIN: CANONICAL (realistic / iOS-weather style) — default
-   ============================================================ */
-body.skin-canonical {
-  /* colors: background */
-  --bg:          #e8f0f8;
-  --bg2:         #dce8f4;
-  --bg3:         #cfdeed;
-  --panel:       #f5f9ff;
-  --panel-alt:   #edf4fc;
-  --border:      #b0c8e0;
-  --border-hl:   #6ca0cc;
-  /* colors: text */
-  --fg:          #1a2a3a;
-  --fg2:         #2a4a6a;
-  --fg3:         #4a6a8a;
-  --fg-dim:      #7a9ab8;
-  /* colors: semantic */
-  --accent:      #1a7fd4;
-  --accent2:     #0e5fa8;
-  --warn:        #e07800;
-  --hot:         #d43a1a;
-  --cold:        #1a60c8;
-  --precip:      #1a60c8;
-  --uv-low:      #22aa44;
-  --uv-mid:      #e07800;
-  --uv-high:     #d43a1a;
-  --night-bg:    #1a0a2e;
-  --day-bg:      #eef5fc;
+  SKIN: NAUTICAL (tide chart / printed instrument) — default
+  ============================================================ */
+body.skin-nautical {
+  /* backgrounds */
+  --bg:          #ede8d5;
+  --bg2:         #e4dfc8;
+  --bg3:         #d8d2bc;
+  --panel:       #f2ede0;
+  --panel-alt:   #ebe5d2;
+  --border:      #b8a878;
+  --border-hl:   #8b7040;
+
+  /* text */
+  --fg:          #1c1810;
+  --fg2:         #2e2516;
+  --fg3:         #5a4a28;
+  --fg-dim:      #8a7a58;
+
+  /* semantic */
+  --accent:      #b5820a;
+  --accent2:     #8b6008;
+  --warn:        #c45c00;
+  --hot:         #a02010;
+  --cold:        #1a4a7a;
+  --precip:      #2a5a8a;
+  --uv-low:      #3a7a30;
+  --uv-mid:      #c45c00;
+  --uv-high:     #a02010;
+  --night-bg:    #1e1a0e;
+  --day-bg:      #f5f0e0;
+
+  /* fonts */
   --font-mono:   'Share Tech Mono', 'Courier New', monospace;
-  --font-display:'Share Tech Mono', monospace;
+  --font-display:'Bebas Neue', 'Share Tech Mono', monospace;
   --font-body:   'Share Tech Mono', monospace;
+
+  /* effects — flat/printed, no phosphor glow */
   --scanline:    transparent;
-  --glow:        0 1px 6px rgba(26,127,212,0.25);
-  --glow-strong: 0 2px 14px rgba(26,127,212,0.45);
-  --radius:      8px;
-  --toggle-icon: "◈";
+  --glow:        0 1px 3px rgba(100,70,10,0.15);
+  --glow-strong: 0 2px 8px rgba(100,70,10,0.25);
+
+  /* shape */
+  --radius:      2px;
+  --toggle-icon: "⊕";
+
+  /* cloud bars */
+  --cloud-day-bg:      #87b8d4;
+  --cloud-day-border:  #4a7a9a;
+  --cloud-day-fill:    #9aacb8;
+  --cloud-night-bg:    #1e2535;
+  --cloud-night-border:#2a3448;
+  --cloud-night-fill:  #3a4560;
 }
 
-/* Canonical skin panel polish */
-body.skin-canonical .panel {
-  box-shadow: 0 2px 10px rgba(26,80,140,0.10);
+/* Nautical skin panel polish */
+body.skin-nautical .panel {
+  box-shadow: 0 1px 4px rgba(80,60,10,0.12);
 }
-body.skin-canonical #topbar-inner {
-  background: linear-gradient(135deg, #dce8f8, #c8daee);
+body.skin-nautical #topbar-inner {
+  background: linear-gradient(135deg, var(--bg2), var(--bg3));
 }
-body.skin-canonical .temp-f { color: #1a7fd4 !important; text-shadow: none; }
-body.skin-canonical .stat-value { color: var(--fg2); }
-body.skin-canonical .now-stat {
+body.skin-nautical .temp-f { color: var(--accent) !important; text-shadow: none; }
+body.skin-nautical .stat-value { color: var(--fg2); }
+body.skin-nautical .now-stat {
   border-radius: 10px;
-  background: rgba(255,255,255,0.7);
+  background: rgba(255,250,235,0.85);
 }
-body.skin-canonical tr.h-current td {
-  background: color-mix(in srgb, #eef5fc 80%, #1a7fd4 20%);
+body.skin-nautical tr.h-current td {
+  background: color-mix(in srgb, var(--panel) 85%, var(--accent) 15%);
 }
-body.skin-canonical .cloud-bar-bg.cb-day  { background: #87ceeb; border-color: #5ba8d4; }
-body.skin-canonical .cloud-bar-bg.cb-day .cloud-bar-fill  { background: #a8bfce; }
-body.skin-canonical .cloud-bar-bg.cb-night { background: #1a2540; border-color: #2a3a5a; }
-body.skin-canonical .cloud-bar-bg.cb-night .cloud-bar-fill { background: #4a5a7a; }
-body.skin-canonical #banner-title { text-shadow: none; }
-body.skin-canonical .range-btn.active,
-body.skin-canonical .range-btn:hover {
-  background: rgba(26,127,212,0.12);
+body.skin-nautical .cloud-bar-bg.cb-day  { background: var(--cloud-day-bg); border-color: var(--cloud-day-border); }
+body.skin-nautical .cloud-bar-bg.cb-day .cloud-bar-fill  { background: var(--cloud-day-fill); }
+body.skin-nautical .cloud-bar-bg.cb-night { background: var(--cloud-night-bg); border-color: var(--cloud-night-border); }
+body.skin-nautical .cloud-bar-bg.cb-night .cloud-bar-fill { background: var(--cloud-night-fill); }
+body.skin-nautical #banner-title { text-shadow: none; }
+body.skin-nautical .range-btn.active,
+body.skin-nautical .range-btn:hover {
+  background: rgba(181,130,10,0.10);
 }
 
-/* Night-mode background for canonical skin only */
-body.skin-canonical.night-mode {
-  background: #1a0a2e;
+/* Night-mode background for nautical skin only */
+body.skin-nautical.night-mode {
+  background: #1e1a0e;
 }
 
 /* ============================================================
-   RESET & BASE
-   ============================================================ */
+  RESET & BASE
+  ============================================================ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { font-size: 14px; }
@@ -157,8 +179,8 @@ body.skin-terminal::before {
 }
 
 /* ============================================================
-   LAYOUT WRAPPER
-   ============================================================ */
+  LAYOUT WRAPPER
+  ============================================================ */
 #app {
   max-width: 1200px;
   margin: 0 auto;
@@ -169,22 +191,14 @@ body.skin-terminal::before {
 }
 
 /* ============================================================
-   PANEL BASE
-   ============================================================ */
+  PANEL BASE
+  ============================================================ */
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
   position: relative;
-}
-
-#sky-section {
-  background: linear-gradient(
-    to bottom,
-    rgba(120, 200, 140, 0.17),
-    rgba(120, 200, 140, 0.13)
-  );
 }
 
 #sky-feels {
@@ -210,8 +224,8 @@ body.skin-terminal::before {
 }
 
 /* ============================================================
-   SKIN TOGGLE
-   ============================================================ */
+  SKIN TOGGLE
+  ============================================================ */
 #skin-toggle {
   position: fixed;
   top: 10px;
@@ -232,8 +246,8 @@ body.skin-terminal::before {
 #skin-toggle:hover { box-shadow: var(--glow-strong); }
 
 /* ============================================================
-   TOP BAR — spec: dual column, dividers, 24h clock
-   ============================================================ */
+  TOP BAR — spec: dual column, dividers, 24h clock
+  ============================================================ */
 #topbar {
   padding: 0;
 }
@@ -306,7 +320,7 @@ body.skin-terminal::before {
   font-size: 1.0rem;
   font-weight: bold;
   line-height: 1;
-  color: var(--hot);
+  color: var(--pulse-color);
 }
 
 #time-tz {
@@ -407,20 +421,16 @@ body.skin-terminal::before {
 
 
 
-/* Legacy — keep #date-dow in case anything still references it */
-#date-dow { display: none; }
-/* Hide old meta-combined */
-#meta-combined { display: none; }
-#meta-right { display: none; }
 
 
 
 /* ============================================================
-   SKYBOWL — radial weather visualization
-   ============================================================ */
+  SKYBOWL — radial weather visualization
+  ============================================================ */
 #sun-arc-full {
   width: 100%;
   margin-bottom: 10px;
+  position: relative;
 }
 
 #sun-arc-full canvas {
@@ -428,8 +438,36 @@ body.skin-terminal::before {
   height: 220px;   /* SKYBOWL height — tall enough for R=1.15 labels above rim */
   display: block;
 }
-   
-   
+
+#skybowl-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--border-hl);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--fg2);
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  min-width: 140px;
+  line-height: 1.65;
+  white-space: nowrap;
+}
+#skybowl-tooltip .tt-time {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 3px;
+  letter-spacing: 0.05em;
+}
+#skybowl-tooltip .tt-row  { display: flex; justify-content: space-between; gap: 10px; }
+#skybowl-tooltip .tt-label { color: var(--fg-dim); }
+#skybowl-tooltip .tt-val   { color: var(--fg2); font-weight: bold; }
+  
+  
 #now-panel {
   padding: 12px;
 }
@@ -477,10 +515,6 @@ body.skin-terminal::before {
   white-space: nowrap;
 }
 
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  letter-spacing: 0.08em;
-}
 
 .now-temp-block {
   display: flex;
@@ -523,10 +557,6 @@ body.skin-terminal::before {
   letter-spacing: 0.04em;
 }
 
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  letter-spacing: 0.08em;
-}
 
 .now-details {
   grid-column: 1 / -1;
@@ -594,8 +624,8 @@ body.skin-terminal::before {
 }
 
 /* ============================================================
-   HOURLY PANEL
-   ============================================================ */
+  HOURLY PANEL
+  ============================================================ */
 #hourly-panel .panel-header span { font-size: 0.7rem; color: var(--fg-dim); }
 
 .hourly-table-wrap {
@@ -703,19 +733,19 @@ td.h-wind {
 }
 /* Day: clear=sky-blue bg, cloud fill grows from right as gray */
 .cloud-bar-bg.cb-day {
-  background: #1a6aaa;
-  border: 1px solid #0d4477;
+  background: var(--cloud-day-bg);
+  border: 1px solid var(--cloud-day-border);
 }
 .cloud-bar-bg.cb-day .cloud-bar-fill {
-  background: #7a8fa0;
+  background: var(--cloud-day-fill);
 }
 /* Night: clear=near-black, cloud fill=dark gray */
 .cloud-bar-bg.cb-night {
-  background: #080e14;
-  border: 1px solid #1a2a3a;
+  background: var(--cloud-night-bg);
+  border: 1px solid var(--cloud-night-border);
 }
 .cloud-bar-bg.cb-night .cloud-bar-fill {
-  background: #3a4a5a;
+  background: var(--cloud-night-fill);
 }
 .cloud-bar-fill {
   height: 100%;
@@ -729,8 +759,8 @@ tr.h-current { border-left: 2px solid var(--accent); }
 tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent) 15%); }
 
 /* ============================================================
-   RANGE BUTTON GROUP (replaces dropdowns in panel headers)
-   ============================================================ */
+  RANGE BUTTON GROUP (replaces dropdowns in panel headers)
+  ============================================================ */
 .range-btn-group {
   display: flex;
   gap: 3px;
@@ -767,9 +797,6 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
   cursor: pointer;
   outline: none;
 }
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-}
 
 
 /* --- LOCATION LAYOUT UPDATE --- */
@@ -805,9 +832,6 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
   outline: none;
   box-sizing: border-box;
   letter-spacing: 0.04em;
-}
-  font-family: var(--font-body);
-  font-size: 0.78rem;
 }
 #location-search::placeholder { color: var(--fg-dim); }
 #location-search:focus { border-color: var(--accent); box-shadow: var(--glow); }
@@ -856,9 +880,6 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
   padding-left: 2px;
   line-height: 1.5;
 }
-  font-family: var(--font-body);
-  font-size: 0.65rem;
-}
 #location-windy {
   text-decoration: none;
   display: inline-block;
@@ -876,8 +897,8 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
 }
 
 /* ============================================================
-   LOCATION SELECTOR
-   ============================================================ */
+  LOCATION SELECTOR
+  ============================================================ */
 #location-bar {
   display: flex;
   flex-direction: column;
@@ -947,8 +968,8 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
 }
 
 /* ============================================================
-   DAILY PANEL
-   ============================================================ */
+  DAILY PANEL
+  ============================================================ */
 #daily-panel-content {
   padding: 8px 10px;
 }
@@ -1025,8 +1046,8 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
 }
 
 /* ============================================================
-   LOADING / ERROR
-   ============================================================ */
+  LOADING / ERROR
+  ============================================================ */
 #loading {
   text-align: center;
   padding: 40px 20px;
@@ -1050,8 +1071,8 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
 }
 
 /* ============================================================
-   SKYBOWL polar case overlay
-   ============================================================ */
+  SKYBOWL polar case overlay
+  ============================================================ */
 .skybowl-polar {
   display: flex;
   align-items: center;
@@ -1104,10 +1125,6 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
   white-space: nowrap;
 }
 
-  font-size: 1.6rem;
-  letter-spacing: 0.08em;
-  text-shadow: none;
-}
 
 /* Date shown inline in banner: "Tue, Apr 21" — same size as title */
 #banner-date {
@@ -1148,8 +1165,8 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
 }
 
 /* ============================================================
-   SKY PANEL
-   ============================================================ */
+  SKY PANEL
+  ============================================================ */
 
 /* ── Anemometer wind instrument ── */
 #anemometer-wrap {
@@ -1173,8 +1190,8 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
 }
 
 /* ============================================================
-   FOOTER
-   ============================================================ */
+  FOOTER
+  ============================================================ */
 #footer-data {
   text-align: center;
   font-size: 0.6rem;
@@ -1186,27 +1203,27 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
 #footer-data a { color: inherit; }
 
 /* ============================================================
-   LAYOUT UTILITIES
-   Semantic helpers so grid/flex changes don't require hunting
-   for hardcoded span values scattered through the CSS.
-   ============================================================ */
+  LAYOUT UTILITIES
+  Semantic helpers so grid/flex changes don't require hunting
+  for hardcoded span values scattered through the CSS.
+  ============================================================ */
 .full-width {
   grid-column: 1 / -1;
 }
 
 /* ============================================================
-   VISIBILITY UTILITY
-   Use .is-hidden instead of display:none on grid/flex children
-   so panels remain in layout flow at all times.
-   ============================================================ */
+  VISIBILITY UTILITY
+  Use .is-hidden instead of display:none on grid/flex children
+  so panels remain in layout flow at all times.
+  ============================================================ */
 .is-hidden {
   visibility: hidden;
   pointer-events: none;
 }
 
 /* ============================================================
-   RESPONSIVE TWEAKS
-   ============================================================ */
+  RESPONSIVE TWEAKS
+  ============================================================ */
 @media (max-width: 360px) {
   .temp-f { font-size: 3.5rem; }
   #time-display { font-size: 2.2rem; }
@@ -1223,7 +1240,7 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
     gap: 12px;
     max-width: 1200px;
     margin: 0 auto;
-    padding: 12px;
+    padding: 8px;
   }
 
   /* Banner spans both columns, anchored to row 1 */
@@ -1233,8 +1250,8 @@ tr.h-current td { background: color-mix(in srgb, var(--panel) 85%, var(--accent)
   }
 
   /* Left column: SKY, NOW, TEMP FORECAST */
-  #sky-section      { grid-column: 1; grid-row: 2; }
-  #topbar           { grid-column: 1; grid-row: 3; }
+  #topbar           { grid-column: 1; grid-row: 2; }
+  #sky-section      { grid-column: 1; grid-row: 3; }
   #forecast-section { grid-column: 1; grid-row: 4; }
 
   /* Right column: WEEKLY, HERE, SPEC */
@@ -1269,16 +1286,16 @@ td.h-rh {
 }
 
 /* ============================================================
-   SOUP SPEC FOOTER
-   ============================================================ */
+  SOUP SPEC FOOTER
+  ============================================================ */
 #soup-spec-footer .soup-spec-bar {
   border-top: none;
   border-radius: 0;
 }
 
 /* ============================================================
-   SOUP SPEC — collapsible methodology footnote
-   ============================================================ */
+  SOUP SPEC — collapsible methodology footnote
+  ============================================================ */
 .soup-spec-bar {
   border-top: 1px solid var(--border);
   display: flex;
@@ -1349,3 +1366,143 @@ td.h-rh {
   pointer-events: auto;  /* important if you want clickable link */
 }
 
+#sky-location {
+  font-size: 1.6rem;
+  letter-spacing: 0.05em;
+}
+
+
+/* ============================================================
+   MOVED FROM index.html
+   ============================================================ */
+    /* ── Skybowl overlay wrapper ── */
+    .skybowl-wrap {
+      position: relative;
+    }
+    .skybowl-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    /* ── Sky panel corner overlays (feels-like, cycle precip) ── */
+    .sky-corner {
+      position: absolute;
+      top: 8px;
+      font-size: 0.75rem;
+      color: var(--fg3);
+      font-family: var(--font-mono);
+      line-height: 1.2;
+      white-space: pre;
+      pointer-events: none;
+    }
+    .sky-left  { left: 10px;  text-align: left; }
+    .sky-right { right: 10px; text-align: right; }
+
+    /* ── Hourly SVG chart ── */
+    #hourly-chart-wrap {
+      padding: 0 6px 6px;
+      overflow: visible;
+      position: relative;
+    }
+    #hourly-svg {
+      display: block;
+      overflow: visible;
+      width: 100%;
+    }
+    #hourly-wind-row {
+      display: flex;
+      flex-direction: row;
+      gap: 0;
+      margin-top: 2px;
+      width: 100%;
+    }
+    .hw-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: var(--font-display);
+      font-size: 0.55rem;
+      color: var(--fg3);
+      flex: 1;
+      line-height: 1.2;
+      overflow: hidden;
+    }
+    .hw-cell.hw-current {
+      border-top: 2px solid var(--accent);
+      color: var(--accent);
+    }
+    .ampm-tag {
+      display: inline;
+      font-size: 0.38rem;
+      margin-left: 1px;
+    }
+
+    /* ── Tooltip card (shared by hourly + daily) ── */
+    #hourly-tooltip {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--panel);
+      border: 1px solid var(--border-hl);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--fg2);
+      z-index: 100;
+      pointer-events: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      min-width: 130px;
+      line-height: 1.65;
+      white-space: nowrap;
+    }
+    #hourly-tooltip .tt-time {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      color: var(--accent);
+      display: block;
+      margin-bottom: 3px;
+      letter-spacing: 0.05em;
+    }
+    #hourly-tooltip .tt-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #hourly-tooltip .tt-label { color: var(--fg-dim); }
+    #hourly-tooltip .tt-val   { color: var(--fg2); font-weight: bold; }
+    #hourly-tooltip .tt-cond  { color: var(--fg); margin-bottom: 2px; }
+
+    /* Daily tooltip reuses tt-row/tt-label/tt-val from above */
+    #daily-tooltip .tt-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #daily-tooltip .tt-label { color: var(--fg-dim); }
+    #daily-tooltip .tt-val   { color: var(--fg2); font-weight: bold; }
+
+    /* ── Header arrow pulse animation ── */
+    .header-arrow {
+      display: inline-block;
+      animation: arrowPulse 2.4s ease-in-out infinite;
+      margin-left: 3px;
+      font-size: 0.85em;
+      vertical-align: middle;
+    }
+    @keyframes arrowPulse {
+      0%, 100% { opacity: 0.25; }
+      50%       { opacity: 0.95; }
+    }
+
+    @keyframes nowDotPulse {
+      0%, 100% { opacity: 1;   r: 3; }
+      50%       { opacity: 0.5; r: 3; }
+    }
+
+    /* Daily panel: make relative for overlay positioning */
+    #daily-panel-content {
+      position: relative;
+    }
