@@ -81,6 +81,17 @@ let _windAnimRunning    = false;
 let _windAnimReq        = null;
 
 /* ============================================================
+   TOOLTIP STATE — written by drawSkybowl(), read by event handlers
+   ============================================================ */
+let _sbLastWedges   = [];   // copy of wedges array from last draw
+let _sbLastHourly   = null; // reference to hourlyData from last draw
+let _sbLastCx       = 0;
+let _sbLastCy       = 0;
+let _sbLastBase     = 0;
+let _sbLastIsNight  = false;
+let _sbActiveWedge  = null; // tap-to-lock: wedge pinned by touch tap (null = no lock)
+
+/* ============================================================
    MAIN ANIMATION LOOP
    ============================================================ */
 let _lastRedrawTs = 0;
@@ -137,48 +148,112 @@ function sbPoint(theta, R, cx, cy, base) {
    COLOR HELPERS
    ============================================================ */
 
-function cloudSliceColor(cldPct, isNight) {
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function lerpRGB(a, b, t) {
+  return [
+    Math.round(lerp(a[0], b[0], t)),
+    Math.round(lerp(a[1], b[1], t)),
+    Math.round(lerp(a[2], b[2], t)),
+  ];
+}
+
+function rgbStr(rgb) {
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+
+function blendRGB(a, b, t) {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+
+function applyPrecipMood(baseRGB, precipProb, precipMm, isNight) {
+  const pProb = Math.max(0, Math.min(100, precipProb || 0)) / 100;
+
+  // Normalize precipitation amount
+  // ~4 mm/hr should already feel very stormy
+  const pAmt = Math.max(0, Math.min(1, (precipMm || 0) / 4));
+
+  // Weighted blend:
+  // probability = atmospheric threat
+  // amount      = severity
+  let wetness =
+    0.55 * pProb +
+    0.45 * pAmt;
+
+  // Nonlinear curve:
+  // keeps low precip subtle,
+  // ramps stronger near storms
+  wetness = Math.pow(wetness, 1.6);
+
+  // Atmospheric storm targets
+  const stormRGB = isNight
+    ? [70, 75, 90]
+    : [95, 105, 120];
+
+  return blendRGB(baseRGB, stormRGB, wetness);
+}
+
+const CLOUD_PALETTES = {
+  nautical_day: [
+    [0.00, [64, 128, 255]],
+    [0.50, [170, 205, 255]],
+    [0.75, [242, 245, 250]],
+    [1.00, [252, 252, 255]],
+  ],
+
+  nautical_night: [
+    [0.00, [60, 30, 160]],
+    [0.50, [120, 110, 190]],
+    [0.75, [210, 215, 235]],
+    [1.00, [245, 245, 250]],
+  ],
+
+  terminal_day: [
+    [0.00, [0, 255, 65]],
+    [0.50, [120, 255, 170]],
+    [0.75, [235, 255, 240]],
+    [1.00, [255, 255, 255]],
+  ],
+
+  terminal_night: [
+    [0.00, [80, 0, 140]],
+    [0.50, [160, 120, 220]],
+    [0.75, [235, 225, 255]],
+    [1.00, [255, 255, 255]],
+  ],
+};
+
+function cloudSliceColor(cldPct, isNight, precipProb = 0, precipMm = 0) {
   const f = Math.max(0, Math.min(100, cldPct)) / 100;
 
-  if (isNight) {
-    const r = Math.round(15  + f * 85);
-    const g = Math.round(25  + f * 75);
-    const b = Math.round(70  + f * 40);
-    const a = (0.50 + f * 0.45).toFixed(2);
-    return `rgba(${r},${g},${b},${a})`;
-  }
+  const key =
+    isSkinTerminal()
+      ? (isNight ? 'terminal_night' : 'terminal_day')
+      : (isNight ? 'nautical_night' : 'nautical_day');
 
-  if (isSkinTerminal()) {
-    if (f < 0.3) {
-      const a = (0.08 + f * 0.60).toFixed(2);
-      return `rgba(0, 255, 65, ${a})`;
-    } else {
-      const t = (f - 0.3) / 0.7;
-      const r = Math.round(0   + t * 210);
-      const g = Math.round(200 + t * 15);
-      const b = Math.round(65  + t * 150);
-      const a = (0.26 + t * 0.64).toFixed(2);
-      return `rgba(${r},${g},${b},${a})`;
+  const stops = CLOUD_PALETTES[key];
+
+  let baseRGB = stops[stops.length - 1][1];
+
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [p0, c0] = stops[i];
+    const [p1, c1] = stops[i + 1];
+
+    if (f >= p0 && f <= p1) {
+      const t = (f - p0) / (p1 - p0);
+      baseRGB = lerpRGB(c0, c1, t);
+      break;
     }
   }
 
-  // canonical skin: realistic sky-to-cloud gradient
-  if (f <= 0.20) {
-    const t = f / 0.20;
-    const sr=64,  sg=128, sb=255;
-    const er=176, eg=184, eb=196;
-    return `rgb(${Math.round(sr+(er-sr)*t)},${Math.round(sg+(eg-sg)*t)},${Math.round(sb+(eb-sb)*t)})`;
-  } else if (f <= 0.70) {
-    const t = (f - 0.20) / 0.50;
-    const sr=176, sg=184, sb=196;
-    const er=148, eg=154, eb=162;
-    return `rgb(${Math.round(sr+(er-sr)*t)},${Math.round(sg+(eg-sg)*t)},${Math.round(sb+(eb-sb)*t)})`;
-  } else {
-    const t = (f - 0.70) / 0.30;
-    const sr=148, sg=154, sb=162;
-    const er=90,  eg=95,  eb=102;
-    return `rgb(${Math.round(sr+(er-sr)*t)},${Math.round(sg+(eg-sg)*t)},${Math.round(sb+(eb-sb)*t)})`;
-  }
+  const finalRGB = applyPrecipMood(baseRGB, precipProb, precipMm, isNight);
+  return rgbStr(finalRGB);
 }
 
 function lerpColor(a, b, t) {
@@ -267,20 +342,75 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
     const anemEl     = document.getElementById('anemometer-wrap');
     const humidityEl = document.getElementById('humidity-indicator');
 	const locEl = document.getElementById('sky-location');
+    const centerTempEl = document.getElementById('sky-center-temp');
 	
     const comfortEmoji = (AppState && AppState.derived && AppState.derived.comfortEmoji)
       ? AppState.derived.comfortEmoji : '🙂';
+
+    const _nowSkyView = AppState && AppState.view ? AppState.view.nowSkyView : 'current';
+
     if (anemEl) {
       anemEl.style.left = `${cx - base * 1.1}px`;
       anemEl.style.top  = `${cy - base * 0.95}px`;
+      // Task 2: show anemometer only for 'current' view
+      const anemVis = (_nowSkyView === 'current') ? '' : 'none';
+      anemEl.style.display = anemVis;
+      const anemLabelEl = document.getElementById('anemometer-label');
+      if (anemLabelEl) anemLabelEl.style.display = anemVis;
     }
 
     if (locEl) {
 		locEl.style.position = 'absolute';
 		locEl.style.left = `${cx}px`;
-		locEl.style.top  = `${cy - base * 0.2}px`;
+		locEl.style.top  = `${cy - base * 0.1}px`;
 		locEl.style.transform = 'translate(-50%, -50%)';
 	}
+
+    // Task 1: center temperature display
+    if (centerTempEl) {
+      centerTempEl.style.left = `${cx}px`;
+      centerTempEl.style.top  = `${cy - base * 0.35}px`;
+
+      if (_nowSkyView === 'current') {
+        // Show current temperature, styled like NOW panel
+        const tempF = (AppState && AppState.bm && AppState.bm.current && AppState.bm.current.temperature_2m != null)
+          ? Math.round(AppState.bm.current.temperature_2m * 9 / 5 + 32)
+          : null;
+        if (tempF !== null) {
+          centerTempEl.innerHTML =
+            `<span style="font-family:var(--font-display,\'Bebas Neue\',sans-serif);font-size:2.6rem;line-height:1;color:var(--accent);">${tempF}°F</span>`;
+        } else {
+          centerTempEl.innerHTML = '';
+        }
+      } else {
+        // Show high/low from skybowlWindow
+        const win = AppState && AppState.derived && AppState.derived.skybowlWindow;
+        const hourly = AppState && AppState.bm && AppState.bm.hourly;
+        if (win && hourly && hourly.time && hourly.temperature_2m) {
+          const winStart = win.start ? win.start.getTime() : 0;
+          const winEnd   = win.end   ? win.end.getTime()   : 0;
+          let hi = -Infinity, lo = Infinity;
+          for (let k = 0; k < hourly.time.length; k++) {
+            const tMs = new Date(hourly.time[k]).getTime();
+            if (tMs < winStart || tMs > winEnd) continue;
+            const tF = hourly.temperature_2m[k] * 9 / 5 + 32;
+            if (tF > hi) hi = tF;
+            if (tF < lo) lo = tF;
+          }
+          if (hi !== -Infinity && lo !== Infinity) {
+            centerTempEl.innerHTML =
+              `<span style="font-family:var(--font-display,'Bebas Neue',sans-serif);font-size:1.7rem;line-height:1.05;">
+                 <span style="color:var(--cold);">${Math.round(lo)}°F</span>
+                 &thinsp;–&thinsp;
+                 <span style="color:var(--hot);">${Math.round(hi)}°F</span>
+               </span>`;          } else {
+            centerTempEl.innerHTML = '';
+          }
+        } else {
+          centerTempEl.innerHTML = '';
+        }
+      }
+    }
   }
 
   // _overrideNow is set temporarily by redrawNowSky() for non-current views.
@@ -342,10 +472,76 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
     const arcEndMs    = arcEnd.getTime();
     const firstStepMs = Math.ceil(arcStartMs / 3600000) * 3600000;
 
+    // ── DEBUG INSTRUMENTATION (temporary) ────────────────────
+    const debugRows = [];
+    // ─────────────────────────────────────────────────────────
+
     for (let tMs = firstStepMs; tMs <= arcEndMs; tMs += 3600000) {
-      const key   = toKey(tMs);
-      const hdIdx = hdIndex.get(key);
-      if (hdIdx === undefined) continue;
+      const tTarget = tMs;
+      let bestIdx = -1;
+      let bestDiff = Infinity;
+      for (let i = 0; i < hourlyData.time.length; i++) {
+        const tData = new Date(hourlyData.time[i]).getTime();
+        const diff = Math.abs(tData - tTarget);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIdx = i;
+        }
+      }
+      const MAX_DIFF = 30 * 60 * 1000;
+      const hdIdx = (bestDiff <= MAX_DIFF) ? bestIdx : -1;
+      // ── DEBUG INSTRUMENTATION (temporary) ────────────────────
+      if (hdIdx >= 0) {
+        const slotUTC = new Date(tMs).toISOString();
+
+        const slotLocal = new Date(tMs).toLocaleString('en-US', {
+          timeZone: CONFIG.tz,
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+          month: 'short',
+          day: 'numeric'
+        });
+
+        const hdUTC = new Date(hourlyData.time[hdIdx]).toISOString();
+
+        const hdLocal = new Date(hourlyData.time[hdIdx]).toLocaleString('en-US', {
+          timeZone: CONFIG.tz,
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+          month: 'short',
+          day: 'numeric'
+        });
+
+        debugRows.push({
+          hdIdx,
+
+          slotUTC,
+          slotLocal,
+
+          hdUTC,
+          hdLocal,
+
+          diffMinutes: Math.round(
+            (
+              new Date(hourlyData.time[hdIdx]).getTime() - tMs
+            ) / 60000
+          ),
+
+          browserHour: new Date(tMs).getHours(),
+
+          tzHour: parseInt(
+            new Intl.DateTimeFormat('en-US', {
+              hour: 'numeric',
+              hour12: false,
+              timeZone: CONFIG.tz
+            }).format(new Date(tMs))
+          )
+        });
+      }
+      // ─────────────────────────────────────────────────────────
+      if (hdIdx === -1) continue;
       const tNorm = (tMs - arcStartMs) / totalArcMs;
       hourSlots.push({
         tMs,
@@ -355,6 +551,11 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
         isDay: hourlyData.is_day[hdIdx] === 1,
       });
     }
+    // ── DEBUG INSTRUMENTATION (temporary) ────────────────────
+    console.group('SKYBOWL SLOT DEBUG');
+    console.table(debugRows);
+    console.groupEnd();
+    // ─────────────────────────────────────────────────────────
   }
 
   ctx.clearRect(0, 0, W, H);
@@ -390,7 +591,12 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
         const tA = Math.PI;           // arcStart is always θ=π
         const tB = firstSlot.theta;   // first slot's angle (< π, so tA > tB ✓)
         const cld   = hourlyData.cloud_cover[firstSlot.hdIdx];
-        const color = cloudSliceColor(cld, !firstSlot.isDay);
+        const color = cloudSliceColor(
+          cld,
+          !firstSlot.isDay,
+          hourlyData.precipitation_probability?.[firstSlot.hdIdx] ?? 0,
+          hourlyData.precipitation?.[firstSlot.hdIdx] ?? 0
+        );
         wedges.push({ tA, tB, midTheta: (tA + tB) / 2, cld, hdIdx: firstSlot.hdIdx, tNorm: 0, isDay: firstSlot.isDay });
         drawWedge(ctx, cx, cy, base, 0.75, 1.0, tA, tB, color);
       }
@@ -404,7 +610,12 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
           : Math.PI * (1 - Math.min(1.0, slot.tNorm + 3600000 / totalArcMs));
 
         const cld   = hourlyData.cloud_cover[slot.hdIdx];
-        const color = cloudSliceColor(cld, !slot.isDay);
+        const color = cloudSliceColor(
+          cld,
+          !slot.isDay,
+          hourlyData.precipitation_probability?.[slot.hdIdx] ?? 0,
+          hourlyData.precipitation?.[slot.hdIdx] ?? 0
+        );
 
         wedges.push({ tA, tB, midTheta: (tA + tB) / 2, cld, hdIdx: slot.hdIdx, tNorm: slot.tNorm, isDay: slot.isDay });
         drawWedge(ctx, cx, cy, base, 0.75, 1.0, tA, tB, color);
@@ -422,9 +633,9 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
 				? getPulseIntensity()
 				: 0.5;
 
-			  const pulseColor = getComputedStyle(document.body)
-				.getPropertyValue('--pulse-color')
-				.trim() || '#1a7fd4';
+			  const pulseColor = document.body.classList.contains('skin-nautical')
+				? '#F7931A'
+				: '#00ff41';
 
 			  ctx.save();
 
@@ -439,7 +650,7 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
 			  ctx.closePath();
 
 			  ctx.strokeStyle = pulseColor;
-			  ctx.lineWidth = 1.5 + 2 * pIntensity;
+			  ctx.lineWidth = 3.0 + 2.5 * pIntensity;
 			  ctx.globalAlpha = 0.35 + 0.6 * pIntensity;
 
 			  ctx.stroke();
@@ -454,7 +665,12 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
         const tA = lastSlot.theta;  // last slot's angle (> 0, so tA > tB ✓)
         const tB = 0;               // arcEnd is always θ=0
         const cld   = hourlyData.cloud_cover[lastSlot.hdIdx];
-        const color = cloudSliceColor(cld, !lastSlot.isDay);
+        const color = cloudSliceColor(
+          cld,
+          !lastSlot.isDay,
+          hourlyData.precipitation_probability?.[lastSlot.hdIdx] ?? 0,
+          hourlyData.precipitation?.[lastSlot.hdIdx] ?? 0
+        );
         wedges.push({ tA, tB, midTheta: (tA + tB) / 2, cld, hdIdx: lastSlot.hdIdx, tNorm: 1, isDay: lastSlot.isDay });
         drawWedge(ctx, cx, cy, base, 0.75, 1.0, tA, tB, color);
       }
@@ -464,8 +680,8 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
   // ── LAYER 3: THE RIM ───────────────────────────────────────
   {
     const rimColor = isNightArc
-      ? (isSkinCanonical() ? '#8899bb' : '#9999cc')
-      : (isSkinCanonical() ? '#d4900a' : '#c8a820');
+      ? (!document.body.classList.contains('skin-terminal') ? '#8899bb' : '#9999cc')
+      : (!document.body.classList.contains('skin-terminal') ? '#d4900a' : '#c8a820');
     ctx.save();
     ctx.globalAlpha  = 0.75 + (1 - c) * 0.25;
     ctx.lineWidth    = 2.5;
@@ -487,17 +703,37 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
       const windDeg = hourlyData.wind_direction_10m[hdIdx] ?? 0;
       const mph     = toMph(windKph);
       const pt      = sbPoint(midTheta, 0.70, cx, cy, base);
-      const aL      = Math.max(4, Math.min(11, mph * 0.20));
+		// ── Stepped wind bands (match TEMP FORECAST logic) ──
+		let aL, alpha, lineW;
+
+		if (mph < 3) {
+		  aL = 5;
+		  alpha = 0.3;
+		  lineW = 1.0;
+		} else if (mph < 9) {
+		  aL = 7;
+		  alpha = 0.55;
+		  lineW = 1.2;
+		} else if (mph < 19) {
+		  aL = 9;
+		  alpha = 0.75;
+		  lineW = 1.4;
+		} else {
+		  aL = 11;
+		  alpha = 1.0;
+		  lineW = 1.6;
+		}
 
       const arrowColor = isNightArc
         ? 'rgba(160,185,245,0.80)'
-        : (isSkinCanonical() ? 'rgba(40,100,200,0.80)' : 'rgba(0,220,80,0.80)');
+        : (!document.body.classList.contains('skin-terminal') ? 'rgba(40,100,200,0.80)' : 'rgba(0,220,80,0.80)');
 
       ctx.save();
       ctx.translate(pt.x, pt.y);
       ctx.rotate((windDeg - 180) * Math.PI / 180);
       ctx.strokeStyle = arrowColor;
-      ctx.lineWidth   = 1.2;
+      ctx.lineWidth   = lineW;
+      ctx.globalAlpha = alpha;
       ctx.lineCap     = 'round';
       ctx.lineJoin    = 'round';
       ctx.beginPath(); ctx.moveTo(0, aL * 0.35); ctx.lineTo(0, -aL); ctx.stroke();
@@ -505,7 +741,7 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
       ctx.moveTo(-aL * 0.38, -aL * 0.4); ctx.lineTo(0, -aL); ctx.lineTo(aL * 0.38, -aL * 0.4);
       ctx.stroke();
       ctx.restore();
-
+      ctx.globalAlpha = alpha;
       ctx.save();
       ctx.font         = `8px ${monoFont}`;
       ctx.fillStyle    = arrowColor;
@@ -531,7 +767,9 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
         const sz = Math.max(10, Math.min(10, 5 + rainIn * 30));
         ctx.font      = `bold ${sz}px ${monoFont}`;
         //ctx.fillStyle = isSkinDefault() ? 'rgba(30,90,210,0.95)' : (isKitschy ? 'rgba(60,120,255,0.92)' : 'rgba(68,136,255,0.92)');
-		ctx.fillStyle = 'rgba(255,255,255,1)';
+        ctx.fillStyle = isSkinTerminal()
+          ? 'rgba(120,220,255,0.95)'
+          : 'rgba(40,110,220,0.95)';
         ctx.fillText(toIn(precip) + '"', pt.x, pt.y);
       } else {
         ctx.font      = `8px ${monoFont}`;
@@ -548,7 +786,7 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
       if (hdIdx === null) return;
       const uv = Math.round(hourlyData.uv_index?.[hdIdx] ?? 0);
       if (uv <= 0) return;
-      const pt = sbPoint(midTheta, 1.12, cx, cy, base);
+      const pt = sbPoint(midTheta, 1.22, cx, cy, base);
       if (pt.x < 2 || pt.x > W - 2 || pt.y < 2) return;
 
       ctx.save();
@@ -580,7 +818,13 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
     const usingOverride = !!window._overrideNow;
     hourSlots.forEach((slot) => {
       const isPast   = !usingOverride && (slot.tNorm <= nowT);
-      const hr       = new Date(slot.tMs).getHours();
+      const hr = parseInt(
+      new Intl.DateTimeFormat('en-US', {
+          hour: 'numeric',
+          hour12: false,
+          timeZone: CONFIG.tz
+        }).format(new Date(slot.tMs))
+      );
       const isPrimaryAxis   = (hr === 0 || hr === 12);
       const isSecondaryAxis = (hr === 6 || hr === 18);
       const isEvery3 = (hr % 3 === 0);
@@ -596,39 +840,51 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
       else if (isEvery3)        { baseLineWidth = 1.6; }
       else                      { baseLineWidth = 0.6; }
 
-      const strokeStyle = isSkinCanonical()
-        ? `rgba(80,120,200,${alpha})`
-        : `rgba(${isNightArc ? '170,180,230' : '0,230,80'},${alpha})`;
-
       ctx.save();
-      ctx.strokeStyle = strokeStyle;
-      if (isPrimaryAxis || isSecondaryAxis) {
-        const pOuter = sbPoint(slot.theta, 1.0, cx, cy, base);
-        ctx.lineWidth   = baseLineWidth;
-        ctx.globalAlpha = isPrimaryAxis ? alpha * 1.25 : alpha;
-        ctx.beginPath();
-        ctx.moveTo(pOuter.x, pOuter.y);
-        ctx.lineTo(cx, cy);
-      } else {
-        ctx.lineWidth = baseLineWidth;
-        ctx.beginPath();
-        ctx.moveTo(tI.x, tI.y);
-        ctx.lineTo(tO.x, tO.y);
-      }
-      ctx.stroke();
-      ctx.restore();
+      ctx.strokeStyle = fg3;
+		if (isPrimaryAxis || isSecondaryAxis) {
+		  // ── 1. full axis line ──
+		  const pOuter = sbPoint(slot.theta, 1.0, cx, cy, base);
+
+		  ctx.lineWidth   = baseLineWidth;
+          ctx.globalAlpha =
+            isPrimaryAxis   ? alpha * 0.3 :
+            isSecondaryAxis ? alpha * 0.3  :
+                              alpha;
+
+		  ctx.beginPath();
+		  ctx.moveTo(pOuter.x, pOuter.y);
+		  ctx.lineTo(cx, cy);
+		  ctx.stroke();
+
+		  // ── 2. outer tick ──
+		  const tickOuter = sbPoint(slot.theta, 1.08, cx, cy, base);
+
+		  ctx.lineWidth = isPrimaryAxis ? 2.2 : 1.6;
+
+		  ctx.beginPath();
+		  ctx.moveTo(pOuter.x, pOuter.y);
+		  ctx.lineTo(tickOuter.x, tickOuter.y);
+		  ctx.stroke();
+
+		} else {
+		  ctx.lineWidth = baseLineWidth;
+
+		  ctx.beginPath();
+		  ctx.moveTo(tI.x, tI.y);
+		  ctx.lineTo(tO.x, tO.y);
+		  ctx.stroke();
+		}
 
       if (isEvery3) {
         const label = String(hr).padStart(2, '0');
         const lPt   = sbPoint(slot.theta, 1.215, cx, cy, base);
         if (lPt.x >= 3 && lPt.x <= W - 3 && lPt.y >= -4 && lPt.y <= cy - 2) {
           ctx.save();
-          ctx.font = `bold 11px ${monoFont}`;
-          ctx.fillStyle = isNightArc
-            ? `rgba(190,200,240,${isPast ? 0.90 : 0.65})`
-            : (isSkinCanonical()
-              ? `rgba(50,90,170,${isPast ? 0.90 : 0.65})`
-              : `rgba(180,220,180,${isPast ? 0.90 : 0.65})`);
+          // Labels should remain prominent even when axis guides are subtle
+          ctx.globalAlpha = 1;
+          ctx.font = `bold 13px ${monoFont}`;
+          ctx.fillStyle = fg3;
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(label, lPt.x, lPt.y);
@@ -659,8 +915,20 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
       if (tNorm < 0.015 || tNorm > 0.985) { prevCode = code; return; }
 
       const info     = wmo(code);
-      const emojiStr = (isNightArc && code === 0) ? '🌙' : info.e;
-      const eSize    = isNowSlot ? 20 : 13;
+      const eSize    = isNowSlot ? 28 : 16;
+      let emojiStr = info.e;
+      if (isNightArc) {
+        if (code === 0) {
+          emojiStr = '🌙'; // clear night
+        } else if (code === 1 || code === 2) {
+          emojiStr = '🌙'; // partly cloudy → still moon
+        } else if (code === 3) {
+          emojiStr = '☁️'; // overcast
+        } else {
+          // rain, storm, etc → keep neutral (no sun)
+          emojiStr = info.e.replace('☀️', ''); // safety strip if needed
+        }
+      }
       const eOffset  = isNowSlot ? 14 : 8;
 
       const basePt  = sbPoint(midTheta, 1.0, cx, cy, base);
@@ -700,13 +968,13 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
     const dotPt      = sbPoint(nowTheta, 1.0, cx, cy, base);
     const pIntensity = (typeof getPulseIntensity === 'function') ? getPulseIntensity() : 0.5;
     const pScale     = (typeof getPulseScale     === 'function') ? getPulseScale()     : 1.2;
-    const rimColor   = isNightArc
-      ? '#8899cc'
-      : (isSkinCanonical() ? '#d4900a' : '#e0b820');
+    const rimColor   = document.body.classList.contains('skin-terminal')
+      ? '#00ff41'
+      : (isNightArc ? '#8899cc' : '#F7931A');
 
     ctx.save();
     /* Outer glow halo — breathes with pulse */
-    const haloR = 6 + pScale * 3.5;
+    const haloR = 9 + pScale * 5;
     const grad = ctx.createRadialGradient(dotPt.x, dotPt.y, 1, dotPt.x, dotPt.y, haloR);
     grad.addColorStop(0, rimColor + 'cc');
     grad.addColorStop(1, rimColor + '00');
@@ -718,7 +986,7 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
     /* Core dot — fixed radius, brightness pulsed via globalAlpha */
     ctx.globalAlpha = 0.70 + 0.30 * pIntensity;
     ctx.beginPath();
-    ctx.arc(dotPt.x, dotPt.y, 3.5, 0, Math.PI * 2);
+    ctx.arc(dotPt.x, dotPt.y, 5.5, 0, Math.PI * 2);
     ctx.fillStyle = rimColor;
     if (!isLight) { ctx.shadowBlur = 6 * pIntensity; ctx.shadowColor = rimColor; }
     ctx.fill();
@@ -734,13 +1002,13 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
   {
     const labelY    = cy + 5;
     const durY      = cy + 4;
-    const labelColor = isSkinCanonical() ? '#3a6aaa' : fg3;
+    const labelColor = (typeof getPulseColor === 'function') ? getPulseColor() : '#F7931A';
     const startLbl  = isNightArc ? '🌇' : '🌅';
     const endLbl    = isNightArc ? '🌅' : '🌇';
 
-    ctx.font = `11px ${monoFont}`;
+    ctx.font = `bold 14px ${monoFont}`;
 
-    ctx.fillStyle    = labelColor;
+    ctx.fillStyle    = fg3;
     ctx.textAlign    = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(`${fmtTime12(arcStart)}${startLbl}`, 2, labelY);
@@ -749,10 +1017,187 @@ function drawSkybowl(srDt, ssDt, cloudPct = 0, weatherEmoji = '☀️', hourlyDa
     ctx.fillText(`${endLbl}${fmtTime12(arcEnd)}`, W - 2, labelY);
 
     const durMin = Math.round(totalArcMs / 60000);
+    ctx.font = `12px ${monoFont}`;
     ctx.fillStyle = fgDim;
     ctx.textAlign = 'center';
     ctx.fillText(`${Math.floor(durMin/60)}h ${durMin%60}m`, cx, durY);
   }
+
+  // ── Store last-draw geometry for tooltip hit-testing ─────
+  _sbLastWedges  = wedges.slice();
+  _sbLastHourly  = hourlyData;
+  _sbLastCx      = cx;
+  _sbLastCy      = cy;
+  _sbLastBase    = base;
+  _sbLastIsNight = isNightArc;
+}
+
+
+/* ============================================================
+   SKYBOWL TOOLTIP — hit-test + event handlers
+   ============================================================ */
+
+function _sbHitTest(canvasX, canvasY) {
+  // Convert canvas CSS pixels to polar coords using last-draw geometry
+  const dx = canvasX - _sbLastCx;
+  const dy = _sbLastCy - canvasY;   // flip Y — bowl opens upward
+  const r  = Math.sqrt(dx * dx + dy * dy);
+
+  // Must be inside the ribbon annulus (R 0.75..1.0)
+  if (r < _sbLastBase * 0.73 || r > _sbLastBase * 1.04) return null;
+
+  // Angle in standard math convention (0=East, increases CCW)
+  let theta = Math.atan2(dy, dx);
+  if (theta < 0) theta += Math.PI * 2;
+
+  // Must be in upper hemisphere (0 < theta < PI)
+  if (theta <= 0 || theta >= Math.PI) return null;
+
+  // Find wedge containing this theta (wedges go from tA > tB, West→East)
+  for (const w of _sbLastWedges) {
+    if (theta <= w.tA && theta >= w.tB) return w;
+  }
+  return null;
+}
+
+function _sbBuildTooltipHTML(wedge) {
+  const h = _sbLastHourly;
+  if (!h || wedge.hdIdx === null) return null;
+  const i = wedge.hdIdx;
+
+  const tempF  = toF(h.temperature_2m[i]);
+  const feelF  = h.apparent_temperature ? toF(h.apparent_temperature[i]) : tempF;
+  const dewF   = toF(h.dew_point_2m[i]);
+  const rh     = Math.round(h.relative_humidity_2m?.[i] ?? 0);
+  const wind   = toMph(h.wind_speed_10m[i] ?? 0);
+  const gust   = h.wind_gusts_10m ? toMph(h.wind_gusts_10m[i]) : null;
+  const wd     = windDir(h.wind_direction_10m[i] ?? 0);
+  const precip = h.precipitation[i] ?? 0;
+  const prob   = h.precipitation_probability?.[i] ?? null;
+  const cloud  = Math.round(h.cloud_cover[i] ?? 0);
+  const uv     = h.uv_index?.[i] ?? 0;
+  const code   = h.weather_code?.[i] ?? 0;
+  const wInfo  = wmo(code);
+  const isDay  = wedge.isDay;
+
+  const timeLabel = (() => {
+    const t = new Date(h.time[i]);
+    return t.toLocaleTimeString('en-US', {
+      timeZone: CONFIG.tz, hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  })();
+
+  const precipStr = precip > 0
+    ? `${toIn(precip)}"${prob != null ? ' / ' + prob + '%' : ''}`
+    : (prob != null && prob > 0 ? `— / ${prob}%` : '—');
+  const gustStr = gust && gust > wind + 3 ? ` (gust ${gust})` : '';
+  const comfortLbl = dewComfortEmoji(dewF);
+
+  return `
+    <span class="tt-time">${timeLabel} · ${getWeatherEmoji(code, !isDay)} ${wInfo.d}</span>
+    <div class="tt-row"><span class="tt-label">temp</span><span class="tt-val">${tempF}°F / feels ${feelF}°F</span></div>
+    <div class="tt-row"><span class="tt-label">dew / RH</span><span class="tt-val">${dewF}°F / ${rh}% ${comfortLbl}</span></div>
+    <div class="tt-row"><span class="tt-label">wind</span><span class="tt-val">${wd.arrow} ${wind} mph${gustStr}</span></div>
+    <div class="tt-row"><span class="tt-label">precip</span><span class="tt-val">${precipStr}</span></div>
+    <div class="tt-row"><span class="tt-label">cloud</span><span class="tt-val">${cloud}%</span></div>
+    ${(isDay && uv > 0) ? `<div class="tt-row"><span class="tt-label">UV</span><span class="tt-val">${uv}</span></div>` : ''}
+  `;
+}
+
+function setupSkybowlTooltip() {
+  const canvas  = document.getElementById('sun-arc-canvas');
+  const tooltip = document.getElementById('skybowl-tooltip');
+  const wrap    = document.getElementById('sun-arc-full');
+  if (!canvas || !tooltip || !wrap) return;
+
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const src  = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+  }
+
+  function showAt(canvasX, canvasY, wedge) {
+    const html = _sbBuildTooltipHTML(wedge);
+    if (!html) { tooltip.style.display = 'none'; return; }
+    tooltip.innerHTML = html;
+    tooltip.style.display = 'block';
+
+    // Position relative to #sun-arc-full
+    const wrapRect   = wrap.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const absX = canvasRect.left - wrapRect.left + canvasX;
+    const absY = canvasRect.top  - wrapRect.top  + canvasY;
+
+    const ttW = tooltip.offsetWidth || 160;
+    let left  = absX - ttW / 2;
+    left = Math.max(4, Math.min(wrapRect.width - ttW - 4, left));
+    tooltip.style.left = left + 'px';
+    tooltip.style.top  = Math.max(0, absY - tooltip.offsetHeight - 8) + 'px';
+  }
+
+  canvas.addEventListener('mousemove', e => {
+    // Don't let hover override a touch-locked tooltip
+    if (_sbActiveWedge !== null) return;
+    const { x, y } = getCanvasPos(e);
+    const wedge = _sbHitTest(x, y);
+    if (wedge) {
+      showAt(x, y, wedge);
+      canvas.style.cursor = 'crosshair';
+    } else {
+      tooltip.style.display = 'none';
+      canvas.style.cursor = '';
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    // Don't hide a touch-locked tooltip on mouseleave
+    if (_sbActiveWedge !== null) return;
+    tooltip.style.display = 'none';
+    canvas.style.cursor = '';
+  });
+
+  canvas.addEventListener('touchstart', e => {
+    const { x, y } = getCanvasPos(e);
+    const wedge = _sbHitTest(x, y);
+    if (wedge) {
+      e.preventDefault();
+      _sbActiveWedge = wedge;
+      showAt(x, y, wedge);
+    }
+  }, { passive: false });
+
+  // touchend: do nothing — tooltip stays visible via _sbActiveWedge lock
+
+  // Tap outside sun-arc-full → dismiss locked tooltip
+document.addEventListener('touchstart', e => {
+  if (_sbActiveWedge === null) return;
+
+  const canvas = document.getElementById('sun-arc-canvas');
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+
+  const x = t.clientX - rect.left;
+  const y = t.clientY - rect.top;
+
+  const wedge = _sbHitTest(x, y);
+
+  // If NOT tapping a wedge → dismiss
+  if (!wedge) {
+    _sbActiveWedge = null;
+    tooltip.style.display = 'none';
+  }
+}, { passive: true });
+
+  document.addEventListener('click', e => {
+    if (_sbActiveWedge === null) return;
+    const arcFull = document.getElementById('sun-arc-full');
+    if (arcFull && !arcFull.contains(e.target) && e.target !== tooltip && !tooltip.contains(e.target)) {
+      _sbActiveWedge = null;
+      tooltip.style.display = 'none';
+    }
+  });
 }
 
 
@@ -828,13 +1273,13 @@ function updateNowSkyButtons(isCurrentlyDay) {
   const btns = document.querySelectorAll('#now-sky-btns .range-btn');
   if (btns.length < 3) return;
   if (isCurrentlyDay) {
-    btns[0].textContent = 'TODAY';
+    btns[0].textContent = 'DAYLIGHT';
     btns[1].textContent = 'TONIGHT';
-    btns[2].textContent = 'TOMORROW';
+    btns[2].textContent = 'NEXT DAY';
   } else {
     btns[0].textContent = 'TONIGHT';
-    btns[1].textContent = 'TOMORROW';
-    btns[2].textContent = 'TMRW NIGHT';
+    btns[1].textContent = 'DAYBREAK';
+    btns[2].textContent = 'NEXT NIGHT';
   }
 }
 
