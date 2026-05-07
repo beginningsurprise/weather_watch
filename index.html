@@ -12,7 +12,7 @@
 <script src="koppen-data.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
-<body class="skin-canonical">
+<body class="skin-nautical">
 
 <button id="skin-toggle" title="Toggle skin">◈ SKIN</button>
 
@@ -26,45 +26,6 @@
       <span id="banner-title">WEATHER WATCH</span>
       <span id="banner-date" style="display:none;"></span>
     </div>
-  </div>
-
-  <!-- SKY PANEL -->
-  <div class="panel is-hidden" id="sky-section">
-    <div class="panel-header">
-      <span>SKY</span>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <div class="range-btn-group" id="now-sky-btns">
-          <button class="range-btn active" data-view="current">Now</button>
-          <button class="range-btn" data-view="other">Tonight</button>
-          <button class="range-btn" data-view="other2">Tomorrow</button>
-        </div>
-        <span id="now-header-time"></span>
-      </div>
-    </div>
-    <div id="now-panel">
-
-    <!-- FULL WIDTH SUN ARC + overlay instruments -->
-    <div id="sun-arc-full">
-      <div class="skybowl-wrap">
-        <canvas id="sun-arc-canvas"></canvas>
-
-        <div class="skybowl-overlay">
-          <!-- Corner overlays: feels-like (left) and cycle precip (right) -->
-          <div id="sky-feels" class="sky-corner sky-left"></div>
-          <div id="sky-precip" class="sky-corner sky-right"></div>
-          <!-- Anemometer: positioned top left by JS -->
-          <div id="anemometer-wrap" style="position:absolute;transform:translate(-50%,-50%);">
-            <canvas id="anemometer-canvas"></canvas>
-            <div id="anemometer-label"></div>
-          </div>
-        </div>
-		  <!-- Location -->
-		  <div id="sky-location" class="sky-center"></div>
-      </div>
-    </div>
-    <!-- comfort emoji stored for wind-in-arc drawing -->
-    <span id="now-comfort-emoji" style="display:none;"></span>
-	</div>
   </div>
 
   <div id="topbar" class="panel">
@@ -97,6 +58,50 @@
     </div><!-- /topbar-inner -->
   </div>
 
+
+  <!-- SKY PANEL -->
+  <div class="panel is-hidden" id="sky-section">
+    <div class="panel-header">
+      <span>SKY</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="range-btn-group" id="now-sky-btns">
+          <button class="range-btn active" data-view="current">Now</button>
+          <button class="range-btn" data-view="other">Tonight</button>
+          <button class="range-btn" data-view="other2">Tomorrow</button>
+        </div>
+        <span id="now-header-time"></span>
+      </div>
+    </div>
+    <div id="now-panel">
+
+    <!-- FULL WIDTH SUN ARC + overlay instruments -->
+    <div id="sun-arc-full">
+      <div class="skybowl-wrap">
+        <canvas id="sun-arc-canvas"></canvas>
+
+        <div class="skybowl-overlay">
+          <!-- Corner overlays: feels-like (left) and cycle precip (right) -->
+          <div id="sky-feels" class="sky-corner sky-left"></div>
+          <div id="sky-precip" class="sky-corner sky-right"></div>
+          <!-- Anemometer: positioned top left by JS -->
+          <div id="anemometer-wrap" style="position:absolute;transform:translate(-50%,-50%);">
+            <canvas id="anemometer-canvas"></canvas>
+            <div id="anemometer-label"></div>
+          </div>
+          <!-- Center temperature display: positioned by JS -->
+          <div id="sky-center-temp" style="position:absolute;transform:translate(-50%,-50%);text-align:center;pointer-events:none;"></div>
+        </div>
+		  <!-- Location -->
+		  <div id="sky-location" class="sky-center"></div>
+      </div>
+      <div id="skybowl-tooltip" style="display:none;"></div>
+    </div>
+    <!-- comfort emoji stored for wind-in-arc drawing -->
+    <span id="now-comfort-emoji" style="display:none;"></span>
+	</div>
+  </div>
+
+
   <div class="panel is-hidden" id="forecast-section">
     <div class="panel-header">
       <span>TEMP FORECAST <span class="header-arrow" id="hourly-arrow">→</span></span>
@@ -114,139 +119,6 @@
   </div>
 
   <!-- HOURLY PANEL -->
-  <style>
-    /* ── Skybowl overlay wrapper ── */
-    .skybowl-wrap {
-      position: relative;
-    }
-    .skybowl-overlay {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-    }
-
-    /* ── Sky panel corner overlays (feels-like, cycle precip) ── */
-    .sky-corner {
-      position: absolute;
-      top: 8px;
-      font-size: 0.75rem;
-      color: var(--fg3);
-      font-family: var(--font-mono);
-      line-height: 1.2;
-      white-space: pre;
-      pointer-events: none;
-    }
-    .sky-left  { left: 10px;  text-align: left; }
-    .sky-right { right: 10px; text-align: right; }
-
-    /* ── Hourly SVG chart ── */
-    #hourly-chart-wrap {
-      padding: 0 6px 6px;
-      overflow: visible;
-      position: relative;
-    }
-    #hourly-svg {
-      display: block;
-      overflow: visible;
-      width: 100%;
-    }
-    #hourly-wind-row {
-      display: flex;
-      flex-direction: row;
-      gap: 0;
-      margin-top: 2px;
-      width: 100%;
-    }
-    .hw-cell {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      font-family: var(--font-display);
-      font-size: 0.55rem;
-      color: var(--fg3);
-      flex: 1;
-      line-height: 1.2;
-      overflow: hidden;
-    }
-    .hw-cell.hw-current {
-      border-top: 2px solid var(--accent);
-      color: var(--accent);
-    }
-    .ampm-tag {
-      display: inline;
-      font-size: 0.38rem;
-      margin-left: 1px;
-    }
-
-    /* ── Tooltip card (shared by hourly + daily) ── */
-    #hourly-tooltip {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--panel);
-      border: 1px solid var(--border-hl);
-      border-radius: var(--radius);
-      padding: 6px 10px;
-      font-family: var(--font-mono);
-      font-size: 0.68rem;
-      color: var(--fg2);
-      z-index: 100;
-      pointer-events: none;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
-      min-width: 130px;
-      line-height: 1.65;
-      white-space: nowrap;
-    }
-    #hourly-tooltip .tt-time {
-      font-family: var(--font-display);
-      font-size: 1.05rem;
-      color: var(--accent);
-      display: block;
-      margin-bottom: 3px;
-      letter-spacing: 0.05em;
-    }
-    #hourly-tooltip .tt-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    #hourly-tooltip .tt-label { color: var(--fg-dim); }
-    #hourly-tooltip .tt-val   { color: var(--fg2); font-weight: bold; }
-    #hourly-tooltip .tt-cond  { color: var(--fg); margin-bottom: 2px; }
-
-    /* Daily tooltip reuses tt-row/tt-label/tt-val from above */
-    #daily-tooltip .tt-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    #daily-tooltip .tt-label { color: var(--fg-dim); }
-    #daily-tooltip .tt-val   { color: var(--fg2); font-weight: bold; }
-
-    /* ── Header arrow pulse animation ── */
-    .header-arrow {
-      display: inline-block;
-      animation: arrowPulse 2.4s ease-in-out infinite;
-      margin-left: 3px;
-      font-size: 0.85em;
-      vertical-align: middle;
-    }
-    @keyframes arrowPulse {
-      0%, 100% { opacity: 0.25; }
-      50%       { opacity: 0.95; }
-    }
-
-    @keyframes nowDotPulse {
-      0%, 100% { opacity: 1;   r: 3; }
-      50%       { opacity: 0.5; r: 3; }
-    }
-
-    /* Daily panel: make relative for overlay positioning */
-    #daily-panel-content {
-      position: relative;
-    }
-  </style>
 
   <!-- DAILY PANEL -->
   <div class="panel is-hidden" id="weekly-section">
